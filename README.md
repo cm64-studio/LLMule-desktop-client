@@ -22,8 +22,8 @@ LLMule Desktop is an Electron-based application that enables users to share thei
 ## Installation
 
 ```bash
-git clone https://github.com/cm64/llmule-desktop-client
-cd llmule-desktop-client
+git clone https://github.com/cm64/LLMule-desktop-client.git
+cd LLMule-desktop-client
 npm install
 # Start dev server
 npm run dev 
