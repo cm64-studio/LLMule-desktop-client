@@ -106,3 +106,31 @@ export class ExoClient extends LLMClient {
     }
   }
 }
+
+export class VLLMClient extends LLMClient {
+  async generateCompletion(model, messages, options = {}) {
+    try {
+      const response = await axios.post(
+        'http://localhost:8000/v1/chat/completions',
+        {
+          model,
+          messages,
+          temperature: options.temperature || 0.7,
+          max_tokens: options.max_tokens || 4096,
+          stream: false
+        }
+      );
+
+      return {
+        choices: response.data.choices,
+        usage: response.data.usage || {
+          prompt_tokens: 0,
+          completion_tokens: 0,
+          total_tokens: 0
+        }
+      };
+    } catch (error) {
+      throw new Error(`vLLM error: ${error.message}`);
+    }
+  }
+}

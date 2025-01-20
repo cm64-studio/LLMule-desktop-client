@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron'
 import axios from 'axios'
 import Store from 'electron-store'
-import config from '../config'
+import config from '../config.js'
 
 const store = new Store()
 

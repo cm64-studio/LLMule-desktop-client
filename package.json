@@ -1,7 +1,7 @@
 {
   "name": "llmule-desktop",
   "private": true,
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "LLMule Desktop - Decentralized AI Computing",
   "author": {
     "name": "Andrés Cufari",
@@ -19,24 +19,33 @@
     "package:mac": "npm run build && npm run electron:build",
     "package:mac-arm64": "npm run build && electron-builder build --mac --arm64 --config electron-builder.json",
     "package:mac-x64": "npm run build && electron-builder build --mac --x64 --config electron-builder.json",
-    "package:mac-universal": "npm run build && electron-builder build --mac --universal --config electron-builder.json"
+    "package:mac-universal": "npm run build && electron-builder build --mac --universal --config electron-builder.json",
+    "package:linux": "npm run build && electron-builder build --linux --config electron-builder.json",
+    "package:win": "npm run build && electron-builder build --win --config electron-builder.json"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.0",
     "@heroicons/react": "^2.2.0",
+    "@tailwindcss/typography": "^0.5.10",
     "autoprefixer": "^10.4.20",
     "axios": "^1.7.9",
-    "bufferutil": "^4.0.9",
     "electron-store": "^10.0.0",
     "electron-updater": "^6.3.9",
     "postcss": "^8.4.49",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hot-toast": "^2.5.1",
+    "react-markdown": "^9.0.1",
+    "react-syntax-highlighter": "^15.5.0",
+    "remark-gfm": "^4.0.0",
     "tailwindcss": "^3.4.17",
-    "utf-8-validate": "^6.0.5",
+    "uuid": "^11.0.5",
     "vite-plugin-electron": "^0.29.0",
     "ws": "^8.18.0"
+  },
+  "optionalDependencies": {
+    "bufferutil": "^4.0.9",
+    "utf-8-validate": "^6.0.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

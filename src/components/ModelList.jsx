@@ -3,7 +3,7 @@ import { useNetwork } from '../contexts/NetworkContext'
 import { ArrowPathIcon } from '@heroicons/react/24/solid'
 
 export default function ModelList() {
-  const { models, isDetecting, detectServices } = useNetwork()
+  const { localModels, isDetecting, detectServices } = useNetwork()
 
   return (
     <div className="flex flex-col">
@@ -22,15 +22,15 @@ export default function ModelList() {
       </div>
 
       <div className="flex-1 overflow-y-auto min-h-0">
-        {models.length === 0 ? (
+        {localModels.length === 0 ? (
           <div className="text-center py-8">
             <div className="text-4xl mb-4">⚠️</div>
-            <p className="text-gray-400 mb-2">No LLM services detected</p>
-            <p className="text-sm text-gray-500 mb-4">Install Ollama, LM Studio, or EXO</p>
+            <p className="text-gray-400 mb-2">No Local LLM Services Detected</p>
+            <p className="text-sm text-gray-500 mb-4">Install Ollama, LM Studio, EXO, or vLLM to share your models</p>
           </div>
         ) : (
           <div className="space-y-1">
-            {models.map((model) => (
+            {localModels.map((model) => (
               <div 
                 key={`${model.type}-${model.name}`}
                 className="bg-gray-700/50 hover:bg-gray-700 transition-colors rounded-md p-3 flex justify-between items-center"

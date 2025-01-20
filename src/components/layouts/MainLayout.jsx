@@ -31,12 +31,12 @@ export default function MainLayout({ children }) {
       <div className="flex-1 flex items-center gap-4">
         <h1 className="text-xl font-mono">⚡ LLMule</h1>
         
-        <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-gray-800">
+        {/* <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-gray-800">
           <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
           <span className="text-gray-400 text-sm">
             {isConnected ? 'Connected to Network' : 'Disconnected'}
           </span>
-        </div>
+        </div> */}
       </div>
 
       <div className="flex items-center gap-4">

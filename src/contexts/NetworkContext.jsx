@@ -1,197 +1,228 @@
-import React, { createContext, useContext, useState, useEffect } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { toast } from 'react-hot-toast'
+import axios from 'axios';
 
 const NetworkContext = createContext()
 
 export function NetworkProvider({ children }) {
   const [isConnected, setIsConnected] = useState(false)
-  const [models, setModels] = useState([])
-  const [activeModels, setActiveModels] = useState([])
+  const [localModels, setLocalModels] = useState([])
+  const [networkModels, setNetworkModels] = useState([])
+  const [isDetecting, setIsDetecting] = useState(false)
   const [balance, setBalance] = useState(0)
   const [activity, setActivity] = useState([])
-  const [isDetecting, setIsDetecting] = useState(false)
-  const [tokenStats, setTokenStats] = useState({ tokensPerMinute: 0, tokensPerSecond: 0 })
+  const [tokenStats, setTokenStats] = useState({
+    tokensPerMinute: 0,
+    tokensPerSecond: 0,
+    lastUpdate: Date.now()
+  })
 
-  useEffect(() => {
-    detectServices();
-    checkBalance();
+  // Token stats calculation
+  const updateTokenStats = useCallback((newActivity) => {
+    if (!newActivity || !newActivity.tokens) return;
     
-    // Add connection status listener
-    window.electron.llm.onStatus(({ connected }) => {
-      setIsConnected(connected);
-      if (!connected) {
-        toast.error('Disconnected from network');
-      }
+    setTokenStats(prev => {
+      const now = Date.now();
+      const timeWindow = 60000; // 1 minute in milliseconds
+      const secondWindow = 1000; // 1 second in milliseconds
+      
+      // Calculate tokens per minute
+      const tokensPerMinute = Math.round((newActivity.tokens.total || 0) * (timeWindow / (now - prev.lastUpdate)));
+      
+      // Calculate tokens per second
+      const tokensPerSecond = Math.round((newActivity.tokens.total || 0) * (secondWindow / (now - prev.lastUpdate)));
+      
+      return {
+        tokensPerMinute,
+        tokensPerSecond,
+        lastUpdate: now
+      };
     });
-    
-    const balanceInterval = setInterval(checkBalance, 30000);
-    const modelInterval = setInterval(checkModels, 5000);
-    
-    window.electron.llm.onActivity((data) => {
-      setActivity(prev => {
-        const newActivity = [data, ...prev].slice(0, 50);
-        updateTokenStats(newActivity);
-        return newActivity;
-      });
-    });
-
-    return () => {
-      clearInterval(balanceInterval);
-      clearInterval(modelInterval);
-    };
   }, []);
 
-  // Check for model changes
-  const checkModels = async () => {
-    if (isDetecting) return; // Skip if already detecting
-
+  // Fetch models from the API with model comparison to prevent unnecessary updates
+  const fetchNetworkModels = useCallback(async (silent = false) => {
     try {
-      const newModels = await window.electron.llm.detectServices()
+      if (!silent) {
+        console.log('Fetching network models...');
+      }
+      const apiKey = await window.electron.store.get('apiKey');
+      const response = await axios.get(`${window.electron.config.API_URL}/v1/models`, {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Accept': 'application/json'
+        }
+      });
       
-      // Compare with current models
-      const currentModelKeys = models.map(m => `${m.type}-${m.name}`).sort().join(',')
-      const newModelKeys = newModels.map(m => `${m.type}-${m.name}`).sort().join(',')
+      if (response.data?.data) {
+        // Compare new models with existing ones to prevent unnecessary updates
+        const newModels = response.data.data;
+        setNetworkModels(prevModels => {
+          const hasChanges = JSON.stringify(prevModels) !== JSON.stringify(newModels);
+          return hasChanges ? newModels : prevModels;
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch network models:', error);
+      if (!silent) {
+        setNetworkModels([]);
+      }
+    }
+  }, []);
+
+  // Detect local LLM services with model comparison
+  const detectLocalServices = useCallback(async (silent = false) => {
+    if (!silent) {
+      setIsDetecting(true);
+    }
+    try {
+      const models = await window.electron.llm.detectServices();
+      if (!silent) {
+        console.log('Local models detected:', models);
+      }
       
-      if (currentModelKeys !== newModelKeys) {
-        console.log('Models changed. Current:', models, 'New:', newModels)
-        setModels(newModels)
-        
-        // If connected and models changed or no models available, handle appropriately
-        if (isConnected) {
-          if (newModels.length === 0) {
-            console.log('Disconnecting due to no available models')
-            await disconnect()
-            toast.error('Sharing disabled: No LLM services available')
-          } else {
-            console.log('Reconnecting due to model changes')
-            await disconnect()
-            await connect()
-          }
+      // Compare new models with existing ones
+      setLocalModels(prevModels => {
+        const hasChanges = JSON.stringify(prevModels) !== JSON.stringify(models);
+        return hasChanges ? models : prevModels;
+      });
+      
+      if (models.length === 0 && isConnected) {
+        await disconnect();
+        if (!silent) {
+          toast.error('Sharing disabled: No local LLM services detected');
         }
       }
     } catch (error) {
-      console.error('Failed to check models:', error)
-      // Disconnect on error if connected
-      if (isConnected) {
-        await disconnect()
-        toast.error('Sharing disabled: Failed to detect LLM services')
-      }
-    }
-  }
-
-  const updateTokenStats = (activities) => {
-    const now = Date.now();
-    const lastMinute = now - 60000;
-    const recentActivities = activities.filter(
-      act => act.timestamp > lastMinute && act.type === 'completion_success'
-    );
-
-    const totalTokens = recentActivities.reduce(
-      (sum, act) => sum + (act.tokens?.total_tokens || 0), 
-      0
-    );
-
-    // Calculate tokens per second first
-    const tokensPerSecond = totalTokens / 60;
-    
-    setTokenStats({
-      tokensPerMinute: Math.round(tokensPerSecond * 60),
-      tokensPerSecond: tokensPerSecond.toFixed(1)
-    });
-  }
-
-  const checkBalance = async () => {
-    try {
-      const balanceData = await window.electron.auth.getBalance()
-      console.log('Balance data received:', balanceData)
-      if (balanceData && typeof balanceData.mule_balance !== 'undefined') {
-        console.log('Setting new balance:', balanceData.mule_balance)
-        setBalance(balanceData.mule_balance)
-      } else {
-        console.warn('Invalid balance data received:', balanceData)
-      }
-    } catch (error) {
-      console.error('Failed to fetch balance:', error)
-    }
-  }
-
-  const detectServices = async () => {
-    setIsDetecting(true)
-    try {
-      const models = await window.electron.llm.detectServices()
-      setModels(models)
-      
-      // If no models detected and we're connected, disconnect
-      if (models.length === 0 && isConnected) {
-        await disconnect()
-        toast.error('Sharing disabled: No LLM services detected')
-      } else {
-        toast.success(`Found ${models.length} models`)
-      }
-    } catch (error) {
-      toast.error('Failed to detect LLM services')
-      // Also disconnect on error if connected
-      if (isConnected) {
-        await disconnect()
+      console.error('Failed to detect local services:', error);
+      if (!silent) {
+        setLocalModels([]);
+        if (isConnected) {
+          await disconnect();
+        }
       }
     } finally {
-      setIsDetecting(false)
+      if (!silent) {
+        setIsDetecting(false);
+      }
     }
-  }
+  }, [isConnected]);
+
+  const refreshModels = useCallback(async () => {
+    console.log('Manually refreshing models...');
+    setIsDetecting(true);
+    await Promise.all([
+      fetchNetworkModels(false),
+      detectLocalServices(false)
+    ]);
+    setIsDetecting(false);
+  }, [fetchNetworkModels, detectLocalServices]);
+
+  // Check balance periodically with silent updates
+  const checkBalance = useCallback(async (silent = true) => {
+    try {
+      const balanceData = await window.electron.auth.getBalance();
+      if (!silent) {
+        console.log('Balance data received:', balanceData);
+      }
+      if (balanceData && typeof balanceData.mule_balance !== 'undefined') {
+        setBalance(balanceData.mule_balance);
+      }
+    } catch (error) {
+      console.error('Failed to fetch balance:', error);
+    }
+  }, []);
+
+  // Initialize and set up periodic checks
+  useEffect(() => {
+    console.log('NetworkProvider mounted, initializing...');
+    
+    // Initial checks
+    refreshModels();
+    checkBalance(false);
+    
+    // Add connection status listener
+    window.electron.llm.onStatus(({ connected }) => {
+      console.log('Connection status changed:', connected);
+      setIsConnected(connected);
+      if (!connected) {
+        toast.error('Disconnected from network');
+        // Reset token stats when disconnected
+        setTokenStats({
+          tokensPerMinute: 0,
+          tokensPerSecond: 0,
+          lastUpdate: Date.now()
+        });
+      }
+    });
+
+    // Add activity listener with token stats update
+    window.electron.llm.onActivity((data) => {
+      console.log('Activity:', data);
+      setActivity(prev => [data, ...prev].slice(0, 50));
+      updateTokenStats(data);
+    });
+    
+    // Set up intervals for periodic checks with silent updates
+    const balanceInterval = setInterval(() => checkBalance(true), 30000);
+    const localModelInterval = setInterval(() => detectLocalServices(true), 30000);
+    const networkModelInterval = setInterval(() => fetchNetworkModels(true), 30000);
+    
+    return () => {
+      clearInterval(balanceInterval);
+      clearInterval(localModelInterval);
+      clearInterval(networkModelInterval);
+    };
+  }, [checkBalance, detectLocalServices, fetchNetworkModels, refreshModels, updateTokenStats]);
 
   const connect = async () => {
     try {
-      if (!models.length) {
-        throw new Error('No models detected. Please make sure your LLM service is running.');
+      if (!localModels.length) {
+        throw new Error('No local models detected. Please make sure your LLM service is running.');
       }
 
-      // Validate models have required properties
-      const invalidModels = models.filter(m => !m.name || !m.type);
-      if (invalidModels.length > 0) {
-        throw new Error('Some models are invalid. Please try detecting models again.');
-      }
-
-      console.log('Connecting with models:', models);
-      await window.electron.llm.connect(models);
+      console.log('Connecting with models:', localModels);
+      await window.electron.llm.connect(localModels);
       setIsConnected(true);
       toast.success('Connected to LLMule network');
-      // Check balance immediately after connection
-      await checkBalance();
+      await checkBalance(false);
     } catch (error) {
       console.error('Connection error:', error);
       toast.error(error.message || 'Connection failed');
     }
-  }
+  };
 
   const disconnect = async () => {
     try {
-      await window.electron.llm.disconnect()
-      setIsConnected(false)
-      toast.success('Disconnected from network')
+      await window.electron.llm.disconnect();
+      setIsConnected(false);
+      toast.success('Disconnected from network');
     } catch (error) {
-      console.error('Disconnect error:', error)
-      toast.error('Failed to disconnect from network')
+      console.error('Disconnect error:', error);
+      toast.error('Failed to disconnect from network');
     }
-  }
+  };
 
   const value = {
     isConnected,
-    models,
-    activeModels,
-    balance,
-    activity,
+    setIsConnected,
+    networkModels,
+    models: networkModels, // For backward compatibility
+    localModels,
     isDetecting,
-    tokenStats,
-    detectServices,
+    balance,
+    activity: activity || [], // Ensure activity is always an array
+    tokenStats, // Add tokenStats to context value
+    refreshModels,
     connect,
     disconnect
-  }
+  };
 
   return (
     <NetworkContext.Provider value={value}>
       {children}
     </NetworkContext.Provider>
-  )
+  );
 }
 
 export const useNetwork = () => {

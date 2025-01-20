@@ -13,7 +13,9 @@ const __dirname = path.dirname(__filename)
 // Environment setup
 process.env.NODE_ENV = process.env.NODE_ENV || 'development'
 process.env.API_URL = config.API_URL
+process.env.WS_URL = config.WS_URL
 console.log('Using API URL:', process.env.API_URL)
+console.log('Using WS URL:', process.env.WS_URL)
 
 const store = new Store()
 let mainWindow = null
@@ -27,16 +29,22 @@ function getIconPath() {
 
 const createWindow = () => {
   mainWindow = new BrowserWindow({
-    width: 900,
-    height: 680,
+    width: 1200,
+    height: 800,
     minWidth: 800,
     minHeight: 600,
-    icon: getIconPath(), 
+    icon: getIconPath(),
+    show: false,
+    backgroundColor: '#111827',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js')
     }
+  })
+
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show()
   })
 
   if (process.env.VITE_DEV_SERVER_URL) {
@@ -46,7 +54,6 @@ const createWindow = () => {
     mainWindow.loadFile('dist/index.html')
   }
 
-  // Make mainWindow available globally for event forwarding
   global.mainWindow = mainWindow
 }
 

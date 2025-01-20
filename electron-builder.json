@@ -1,40 +1,44 @@
 {
-    "appId": "com.llmule.desktop",
+    "appId": "xyz.llmule.desktop",
     "productName": "LLMule",
     "directories": {
-        "output": "release"
+      "output": "dist_electron"
     },
     "files": [
-        "dist/**/*",
-        "dist-electron/**/*"
+      "dist/**/*",
+      "dist-electron/**/*"
     ],
     "mac": {
-        "category": "public.app-category.developer-tools",
-        "target": [
-            {
-                "target": "dmg",
-                "arch": ["x64", "arm64"]
-            }
-        ],
-        "icon": "assets/icon.icns",
-        "hardenedRuntime": true,
-        "gatekeeperAssess": false,
-        "entitlements": "build/entitlements.mac.plist",
-        "entitlementsInherit": "build/entitlements.mac.plist"
+      "category": "public.app-category.developer-tools",
+      "icon": "assets/icon.icns",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        }
+      ]
     },
-    "dmg": {
-        "contents": [
-            {
-                "x": 130,
-                "y": 220
-            },
-            {
-                "x": 410,
-                "y": 220,
-                "type": "link",
-                "path": "/Applications"
-            }
-        ],
-        "artifactName": "${productName}-${version}-${arch}.${ext}"
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "linux": {
+      "icon": "assets/icon.png",
+      "target": ["AppImage", "deb"],
+      "category": "Development"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "cm64",
+      "repo": "LLMule-desktop-client"
     }
-}
+  }

@@ -35,6 +35,7 @@ npm run build
 npm run package:mac      # macOS universal binary
 npm run package:mac-arm64  # Apple Silicon
 npm run package:mac-x64    # Intel
+npm run package:win
 ```
 
 ## Configuration

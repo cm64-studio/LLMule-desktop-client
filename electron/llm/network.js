@@ -1,7 +1,7 @@
 import WebSocket from 'ws'
 import axios from 'axios'
 import config from '../config'
-import { OllamaClient, LMStudioClient, ExoClient } from './clients'
+import { OllamaClient, LMStudioClient, ExoClient, VLLMClient } from './clients'
 import Store from 'electron-store'
 
 const store = new Store()
@@ -189,7 +189,8 @@ export class NetworkClient {
     const llmClients = {
       ollama: new OllamaClient(),
       lmstudio: new LMStudioClient(),
-      exo: new ExoClient()
+      exo: new ExoClient(),
+      vllm: new VLLMClient()
     };
 
     try {

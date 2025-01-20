@@ -1,23 +1,72 @@
 <!DOCTYPE html>
-<html lang="en" class="dark bg-gray-900">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LLMule - Decentralized AI Computing</title>
     <style>
       html, body {
-        background-color: #111827; /* matches bg-gray-900 */
+        background-color: #111827;
         margin: 0;
         padding: 0;
+        height: 100vh;
+        width: 100vw;
+        overflow: hidden;
       }
       #root {
-        min-height: 100vh;
+        height: 100vh;
+        width: 100vw;
+        overflow: hidden;
+      }
+      #splash-screen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: #9CA3AF;
+        font-family: system-ui, -apple-system, sans-serif;
         background-color: #111827;
+      }
+      #splash-screen img {
+        width: 120px;
+        height: 120px;
+        margin-bottom: 20px;
+      }
+      .loading-dots {
+        display: flex;
+        gap: 8px;
+        margin-top: 16px;
+      }
+      .loading-dots div {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background-color: #4B5563;
+        animation: bounce 0.5s infinite alternate;
+      }
+      .loading-dots div:nth-child(2) { animation-delay: 0.2s; }
+      .loading-dots div:nth-child(3) { animation-delay: 0.4s; }
+      @keyframes bounce {
+        to { transform: translateY(-4px); }
       }
     </style>
   </head>
   <body>
+    <div id="splash-screen">
+      <img src="/vite.svg" alt="LLMule Logo" />
+      <h2>LLMule</h2>
+      <div class="loading-dots">
+        <div></div>
+        <div></div>
+        <div></div>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

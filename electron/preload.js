@@ -1,5 +1,11 @@
 const { contextBridge, ipcRenderer } = require('electron')
 
+// Use environment variables set from config.js
+const config = {
+  API_URL: process.env.API_URL || 'http://localhost:3000',
+  WS_URL: process.env.WS_URL || 'ws://localhost:3000/llm-network'
+}
+
 // Set up activity event listener
 let activityCallback = null;
 ipcRenderer.on('llm:activity', (_, data) => {
@@ -7,6 +13,7 @@ ipcRenderer.on('llm:activity', (_, data) => {
 });
 
 contextBridge.exposeInMainWorld('electron', {
+  config,
   store: {
     get: (key) => ipcRenderer.invoke('store:get', key),
     set: (key, value) => ipcRenderer.invoke('store:set', key, value),

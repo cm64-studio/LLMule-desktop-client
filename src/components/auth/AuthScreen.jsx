@@ -56,8 +56,8 @@ export default function AuthScreen() {
 
     try {
       await window.electron.auth.register(email)
-      toast.success('Check your email for your API key')
-      setIsRequestingKey(false)
+      toast.success('API key sent! Please check your email')
+      setIsRequestingKey('success')
     } catch (error) {
       const message = error.message || 'Failed to request API key'
       toast.error(message)
@@ -75,7 +75,24 @@ export default function AuthScreen() {
           <p className="mt-2 text-gray-400">Share your LLMs with the world</p>
         </div>
 
-        {!isRequestingKey ? (
+        {isRequestingKey === 'success' ? (
+          <div className="text-center space-y-6">
+            <div className="bg-gray-800/50 rounded-lg p-6 space-y-4">
+              <div className="text-4xl">📧</div>
+              <h2 className="text-xl font-semibold text-white">Check Your Email</h2>
+              <div className="space-y-2 text-gray-400">
+                <p>We've sent your API key to <span className="text-white">{email}</span></p>
+                <p className="text-sm">Please check your inbox and spam folder. It should arrive within a few minutes.</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsRequestingKey(false)}
+              className="text-indigo-400 hover:text-indigo-300 text-sm"
+            >
+              ← Back to login
+            </button>
+          </div>
+        ) : !isRequestingKey ? (
           <>
             <form onSubmit={handleSubmitApiKey} className="mt-8 space-y-6">
               <div>

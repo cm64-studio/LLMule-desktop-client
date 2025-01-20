@@ -4,7 +4,7 @@ import { Switch } from '@headlessui/react'
 
 export default function StatusBar() {
   const { isConnected, connect, disconnect, isDetecting, models } = useNetwork()
-  const hasModels = models.length > 0
+  const hasModels = models?.length > 0 || false
 
   const toggleConnection = async () => {
     if (isConnected) {
