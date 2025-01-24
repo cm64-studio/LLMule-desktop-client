@@ -3,6 +3,7 @@ import path from 'path'
 import Store from 'electron-store'
 import { setupAuthHandlers } from './auth/handlers.js'
 import { setupLLMHandlers } from './llm/handlers.js'
+import { llamaService } from './services/llama';
 import config from './config.js'
 import { fileURLToPath } from 'url'
 
@@ -57,11 +58,11 @@ const createWindow = () => {
   global.mainWindow = mainWindow
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  await llamaService.initialize();
   createWindow()
   setupAuthHandlers()
   setupLLMHandlers()
-  
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })

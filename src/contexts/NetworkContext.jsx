@@ -11,6 +11,9 @@ export function NetworkProvider({ children }) {
   const [isDetecting, setIsDetecting] = useState(false)
   const [balance, setBalance] = useState(0)
   const [activity, setActivity] = useState([])
+  const [downloadModelStatus, setDownloadModelStatus] = useState(null)
+  const [downloadedModels, setDownloadedModels] = useState([])
+  const [showModelSetup, setShowModelSetup] = useState(false)
   const [tokenStats, setTokenStats] = useState({
     tokensPerMinute: 0,
     tokensPerSecond: 0,
@@ -70,53 +73,57 @@ export function NetworkProvider({ children }) {
     }
   }, []);
 
-  // Detect local LLM services with model comparison
-  const detectLocalServices = useCallback(async (silent = false) => {
+  const detectLocalModels = useCallback(async (silent = false) => {
     if (!silent) {
       setIsDetecting(true);
     }
     try {
-      const models = await window.electron.llm.detectServices();
-      if (!silent) {
-        console.log('Local models detected:', models);
-      }
+      // First check existing services
+      const services = await window.electron.llm.detectServices();
+      console.log('Detected services:', services);
+
+      // Then check downloaded models
+      const downloadedModelPaths = await window.electron.llm.getDownloadedModels();
+      console.log('Downloaded models:', downloadedModelPaths);
+
+      // Combine both into local models
+      const allModels = [
+        ...services,
+        ...downloadedModelPaths.map(path => ({
+          name: path.split('/').pop().replace('.gguf', ''),
+          type: 'llama.cpp',
+          path
+        }))
+      ];
+
+      console.log('All local models:', allModels);
       
-      // Compare new models with existing ones
       setLocalModels(prevModels => {
-        const hasChanges = JSON.stringify(prevModels) !== JSON.stringify(models);
-        return hasChanges ? models : prevModels;
+        const hasChanges = JSON.stringify(prevModels) !== JSON.stringify(allModels);
+        return hasChanges ? allModels : prevModels;
       });
-      
-      if (models.length === 0 && isConnected) {
-        await disconnect();
-        if (!silent) {
-          toast.error('Sharing disabled: No local LLM services detected');
-        }
-      }
+
     } catch (error) {
-      console.error('Failed to detect local services:', error);
+      console.error('Failed to detect local models:', error);
       if (!silent) {
         setLocalModels([]);
-        if (isConnected) {
-          await disconnect();
-        }
       }
     } finally {
       if (!silent) {
         setIsDetecting(false);
       }
     }
-  }, [isConnected]);
+  }, []);
 
   const refreshModels = useCallback(async () => {
     console.log('Manually refreshing models...');
     setIsDetecting(true);
     await Promise.all([
       fetchNetworkModels(false),
-      detectLocalServices(false)
+      detectLocalModels(false)
     ]);
     setIsDetecting(false);
-  }, [fetchNetworkModels, detectLocalServices]);
+  }, [fetchNetworkModels, detectLocalModels]);
 
   // Check balance periodically with silent updates
   const checkBalance = useCallback(async (silent = true) => {
@@ -165,7 +172,7 @@ export function NetworkProvider({ children }) {
     
     // Set up intervals for periodic checks with silent updates
     const balanceInterval = setInterval(() => checkBalance(true), 30000);
-    const localModelInterval = setInterval(() => detectLocalServices(true), 30000);
+    const localModelInterval = setInterval(() => detectLocalModels(true), 30000);
     const networkModelInterval = setInterval(() => fetchNetworkModels(true), 30000);
     
     return () => {
@@ -173,12 +180,65 @@ export function NetworkProvider({ children }) {
       clearInterval(localModelInterval);
       clearInterval(networkModelInterval);
     };
-  }, [checkBalance, detectLocalServices, fetchNetworkModels, refreshModels, updateTokenStats]);
+  }, [checkBalance, detectLocalModels, fetchNetworkModels, refreshModels, updateTokenStats]);
+
+  const downloadModel = async (modelId) => {
+    console.log('Starting download in NetworkContext:', modelId);
+    
+    const handleProgress = (data) => {
+      console.log('Download progress:', data);
+      if (data.modelId === modelId) {
+        setDownloadModelStatus(prev => ({
+          ...prev,
+          modelId,
+          progress: data.progress,
+        }));
+      }
+    };
+  
+    const handleStatus = (data) => {
+      console.log('Download status:', data);
+      if (data.modelId === modelId) {
+        setDownloadModelStatus(prev => ({
+          ...prev,
+          modelId,
+          status: data.status,
+        }));
+      }
+    };
+  
+    try {
+      const result = await window.electron.llm.downloadModel(modelId, {
+        onProgress: handleProgress,
+        onStatusChange: handleStatus
+      });
+  
+      console.log('Download result:', result);
+  
+      if (!result.success) {
+        throw new Error(result.error || 'Download failed');
+      }
+  
+      setDownloadedModels(prev => [...prev, modelId]);
+      await detectLocalModels(false);
+      return true;
+    } catch (error) {
+      console.error('Download error in NetworkContext:', error);
+      setDownloadModelStatus(prev => ({
+        ...prev,
+        status: 'error',
+        error: error.message
+      }));
+      return false;
+    }
+  };
 
   const connect = async () => {
     try {
-      if (!localModels.length) {
-        throw new Error('No local models detected. Please make sure your LLM service is running.');
+      // If no downloaded models and no local services, show setup
+      if (!downloadedModels.length && !localModels.length) {
+        setShowModelSetup(true);
+        return;
       }
 
       console.log('Connecting with models:', localModels);
@@ -207,15 +267,20 @@ export function NetworkProvider({ children }) {
     isConnected,
     setIsConnected,
     networkModels,
-    models: networkModels, // For backward compatibility
+    models: networkModels,
     localModels,
     isDetecting,
     balance,
-    activity: activity || [], // Ensure activity is always an array
-    tokenStats, // Add tokenStats to context value
+    activity: activity || [],
+    tokenStats,
     refreshModels,
     connect,
-    disconnect
+    disconnect,
+    downloadModel,
+    downloadModelStatus,
+    downloadedModels,
+    showModelSetup,
+    setShowModelSetup
   };
 
   return (
