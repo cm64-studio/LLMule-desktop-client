@@ -20,7 +20,7 @@ export function ChatProvider({ children }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [chatConfig, setChatConfig] = useState(DEFAULT_CONFIG);
-  const { networkModels } = useNetwork();
+  const { networkModels, localModels } = useNetwork();
 
   // Load chat configuration from localStorage
   useEffect(() => {
@@ -91,7 +91,7 @@ export function ChatProvider({ children }) {
       id: crypto.randomUUID(),
       modelId,
       messages: initialMessages,
-      title: initialMessages.length > 0 ? 'Fork: ' + initialMessages[0].content.slice(0, 30) + '...' : 'New Conversation',
+      title: 'New Conversation',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -132,111 +132,115 @@ export function ChatProvider({ children }) {
     setCurrentConversation(updatedConversation);
   };
 
-  const sendMessage = async (content, modelId, conversationId) => {
-    if (!networkModels.length) {
+  // Helper function to check if a model or tier is available
+  const checkModelAvailability = (modelId) => {
+    // Check if it's a tier
+    const tiers = ['xs', 'small', 'medium', 'large', 'xl', 'xxl'];
+    if (tiers.includes(modelId)) {
+      // For tiers, check if there are any models of that tier available
+      const hasTierModels = networkModels.some(m => m.tier === modelId);
+      return {
+        isAvailable: hasTierModels,
+        message: hasTierModels ? null : `No models available for tier ${modelId} at this time. Please select another model.`
+      };
+    }
+
+    // Check if it's a specific model
+    const modelExists = networkModels.some(m => m.id === modelId) || 
+                       localModels.some(m => m.name === modelId || m.id === modelId);
+    
+    return {
+      isAvailable: modelExists,
+      message: modelExists ? null : `Model ${modelId} isn't available at this time. Please select another model.`
+    };
+  };
+
+  const sendMessage = async (content, modelId, conversationId = null, existingConversation = null) => {
+    console.log('SendMessage - Initial state:', { content, modelId, conversationId });
+    console.log('Current conversation:', currentConversation);
+    
+    if (!networkModels.length && !localModels.length) {
       toast.error('No models available');
       return;
     }
 
+    // Check model availability
+    const { isAvailable, message } = checkModelAvailability(modelId);
+    if (!isAvailable) {
+      toast.error(message);
+      return;
+    }
+  
+    let conversation;
     try {
-      // 1. Create user message
       const userMessage = { 
         role: 'user', 
         content, 
         timestamp: new Date().toISOString() 
       };
-
-      // 2. Get or create conversation
-      let conversation;
-      if (!conversationId) {
+  
+      if (existingConversation) {
+        conversation = existingConversation;
+      } else if (!conversationId) {
         conversation = {
           id: crypto.randomUUID(),
           modelId,
-          messages: [],
+          messages: [userMessage],
           title: content.slice(0, 30) + (content.length > 30 ? '...' : ''),
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
       } else {
-        conversation = conversations.find(c => c.id === conversationId);
-        if (!conversation) throw new Error('Conversation not found');
-        conversation = { ...conversation };
-      }
-
-      // 3. Add user message and update UI
-      conversation.messages = [...conversation.messages, userMessage];
-      conversation.isThinking = true;
-      
-      setConversations(prev => [
-        conversation,
-        ...prev.filter(c => c.id !== conversation.id)
-      ]);
-      setCurrentConversation(conversation);
-
-      // 4. Get API response with current configuration
-      const apiKey = await window.electron.store.get('apiKey');
-      const response = await axios.post(
-        `${window.electron.config.API_URL}/v1/chat/completions`,
-        {
-          model: modelId,
-          messages: conversation.messages,
-          temperature: chatConfig.temperature,
-          max_tokens: chatConfig.maxTokens,
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Accept': 'application/json'
+        conversation = { ...currentConversation };
+        // Don't modify messages if regenerating
+        if (!conversation.messages.some(m => m.content === content && m.role === 'user')) {
+          conversation.messages = [...conversation.messages, userMessage];
+          // Update title if this is the first message
+          if (conversation.messages.length === 1) {
+            conversation.title = content.slice(0, 30) + (content.length > 30 ? '...' : '');
           }
         }
-      );
-
-      // 5. Add AI response and update UI
-      const aiMessage = { 
-        role: 'assistant',
-        content: response.data.choices[0].message.content,
-        timestamp: new Date().toISOString()
-      };
-
-      conversation.messages = [...conversation.messages, aiMessage];
+      }
+  
+      conversation.isThinking = true;
+      
+      setConversations(prev => [conversation, ...prev.filter(c => c.id !== conversation.id)]);
+      setCurrentConversation(conversation);
+  
+      const messages = chatConfig.systemPrompt ? 
+        [{ role: 'system', content: chatConfig.systemPrompt }, ...conversation.messages] :
+        conversation.messages;
+  
+      const response = await window.electron.llm.chat({
+        model: modelId,
+        messages,
+        temperature: chatConfig.temperature,
+        max_tokens: chatConfig.maxTokens,
+        type: localModels.find(m => m.name === modelId || m.id === modelId)?.type,
+        isLocal: localModels.some(m => m.name === modelId || m.id === modelId)
+      });
+  
+      if (!response?.content) throw new Error('Invalid response');
+  
+      // Keep all existing messages and add the assistant's response
+      conversation.messages = [
+        ...conversation.messages,
+        { role: 'assistant', content: response.content, timestamp: new Date().toISOString() }
+      ];
       conversation.isThinking = false;
       conversation.updatedAt = new Date().toISOString();
-
-      setConversations(prev => [
-        conversation,
-        ...prev.filter(c => c.id !== conversation.id)
-      ]);
+  
+      setConversations(prev => [conversation, ...prev.filter(c => c.id !== conversation.id)]);
       setCurrentConversation(conversation);
-
+  
     } catch (error) {
-      console.error('Failed to send message:', error);
-      toast.error('Failed to get response from the model');
-      
-      // 6. Handle error by adding error message
-      if (conversationId) {
-        const conversation = conversations.find(c => c.id === conversationId);
-        if (conversation) {
-          const errorMessage = { 
-            role: 'assistant', 
-            content: 'Sorry, I encountered an error processing your request. Please try again.',
-            timestamp: new Date().toISOString(),
-            isError: true
-          };
-          
-          const updatedConversation = {
-            ...conversation,
-            messages: [...conversation.messages, errorMessage],
-            isThinking: false,
-            updatedAt: new Date().toISOString()
-          };
-          
-          setConversations(prev => [
-            updatedConversation,
-            ...prev.filter(c => c.id !== conversationId)
-          ]);
-          setCurrentConversation(updatedConversation);
-        }
+      console.error('Model inference failed:', error);
+      if (conversation) {
+        conversation.isThinking = false;
+        setConversations(prev => [conversation, ...prev.filter(c => c.id !== conversation.id)]);
+        setCurrentConversation(conversation);
       }
+      throw error;
     }
   };
 
@@ -252,7 +256,12 @@ export function ChatProvider({ children }) {
   };
 
   const changeConversationModel = (conversationId, newModelId) => {
-    if (!networkModels.find(m => m.id === newModelId)) {
+    // Check if model exists in either local or network models
+    const modelExists = networkModels.some(m => m.id === newModelId) || 
+                       localModels.some(m => m.name === newModelId || m.id === newModelId) ||
+                       ['xs', 'small', 'medium', 'large', 'xl', 'xxl'].includes(newModelId);
+                       
+    if (!modelExists) {
       toast.error('Invalid model selected');
       return;
     }
@@ -332,32 +341,46 @@ export function ChatProvider({ children }) {
     }
   };
 
-  const regenerateResponse = async (conversationId, messageIndex) => {
-    const conversation = conversations.find(c => c.id === conversationId);
-    if (!conversation) return;
-
-    // Eliminar todos los mensajes después del índice del mensaje del usuario
-    const updatedMessages = conversation.messages.slice(0, messageIndex + 1);
-    
-    // Actualizar la conversación sin las respuestas eliminadas
-    const updatedConversation = {
-      ...conversation,
-      messages: updatedMessages,
-      updatedAt: new Date().toISOString()
-    };
-
-    setConversations(prev => [
-      updatedConversation,
-      ...prev.filter(c => c.id !== conversationId)
-    ]);
-    setCurrentConversation(updatedConversation);
-
-    // Regenerar la respuesta
-    await sendMessage(
-      updatedMessages[messageIndex].content,
-      conversation.modelId,
-      conversationId
-    );
+  const regenerateResponse = async (messageIndex) => {
+    if (!networkModels.length && !localModels.length) {
+      toast.error('No models available');
+      return;
+    }
+  
+    try {
+      const messages = currentConversation.messages;
+      console.log('Before regeneration - messages:', messages);
+  
+      let userMessageIndex = messageIndex;
+      if (messages[messageIndex].role === 'assistant') {
+        userMessageIndex = messageIndex - 1;
+      }
+  
+      const userMessage = messages[userMessageIndex];
+      console.log('Found user message:', userMessage);
+  
+      // Keep messages up to user message only
+      const keptMessages = messages.slice(0, userMessageIndex + 1);
+      console.log('Kept messages:', keptMessages);
+  
+      const updatedConversation = {
+        ...currentConversation,
+        messages: keptMessages,
+        isThinking: true,
+        isRegenerating: true // Add flag
+      };
+  
+      setCurrentConversation(updatedConversation);
+      setConversations(prev => [
+        updatedConversation,
+        ...prev.filter(c => c.id !== currentConversation.id)
+      ]);
+  
+      await sendMessage(userMessage.content, currentConversation.modelId, currentConversation.id, updatedConversation);
+    } catch (error) {
+      console.error('Failed to regenerate:', error);
+      toast.error('Failed to regenerate response');
+    }
   };
 
   const value = {

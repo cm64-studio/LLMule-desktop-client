@@ -7,27 +7,24 @@ import ChatConfig from './ChatConfig';
 import { toast } from 'react-hot-toast';
 import { ArrowPathIcon, PencilIcon, Cog6ToothIcon, EnvelopeIcon, ShareIcon } from '@heroicons/react/24/outline';
 import ModelSelector from './ModelSelector';
-import axios from 'axios';
 
 export default function ChatInterface() {
   const { 
     currentConversation,
     sendMessage,
     isLoading,
-    isSaving,
     availableModels,
     createNewConversation,
     changeConversationModel,
     deleteMessage,
     editMessage,
     updateConversationTitle,
-    setCurrentConversation,
-    setConversations,
     chatConfig,
-    updateChatConfig
+    updateChatConfig,
+    regenerateResponse
   } = useChat();
   
-  const { isConnected, refreshModels, isDetecting } = useNetwork();
+  const { isConnected, refreshModels, isDetecting, localModels, networkModels } = useNetwork();
   const messagesEndRef = useRef(null);
   const [pendingMessage, setPendingMessage] = useState(null);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -37,12 +34,20 @@ export default function ChatInterface() {
   const [balanceInfo, setBalanceInfo] = useState(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
   };
 
   useEffect(() => {
     scrollToBottom();
   }, [currentConversation?.messages]);
+
+  useEffect(() => {
+    if (!isLoading) {
+      scrollToBottom();
+    }
+  }, [isLoading]);
 
   useEffect(() => {
     if (currentConversation) {
@@ -62,157 +67,10 @@ export default function ChatInterface() {
     
     try {
       const modelId = currentConversation?.modelId || availableModels[0].id;
-      let conversationId = currentConversation?.id;
-      
-      // Create user message
-      const userMessage = {
-        role: 'user',
-        content,
-        timestamp: new Date().toISOString()
-      };
-
-      // Update conversation immediately with user message and thinking state
-      let updatedConversation;
-      if (!currentConversation) {
-        // Create new conversation if none exists
-        updatedConversation = {
-          id: crypto.randomUUID(),
-          modelId,
-          messages: [userMessage],
-          title: content.slice(0, 30) + (content.length > 30 ? '...' : ''),
-          isThinking: true,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-      } else {
-        updatedConversation = {
-          ...currentConversation,
-          messages: [...currentConversation.messages, userMessage],
-          isThinking: true,
-          updatedAt: new Date().toISOString()
-        };
-      }
-
-      setConversations(prev => [
-        updatedConversation,
-        ...prev.filter(c => c?.id !== updatedConversation.id)
-      ]);
-      setCurrentConversation(updatedConversation);
-      
-      // Prepare messages array with system prompt if present
-      const messages = [];
-      if (chatConfig.systemPrompt) {
-        messages.push({
-          role: 'system',
-          content: chatConfig.systemPrompt
-        });
-      }
-      
-      // Add all previous messages plus the new one
-      messages.push(...updatedConversation.messages);
-      
-      // Get API response with configuration
-      const apiKey = await window.electron.store.get('apiKey');
-      try {
-        const response = await axios.post(
-          `${window.electron.config.API_URL}/v1/chat/completions`,
-          {
-            model: modelId,
-            messages: messages,
-            temperature: chatConfig.temperature,
-            max_tokens: chatConfig.maxTokens,
-          },
-          {
-            headers: {
-              'Authorization': `Bearer ${apiKey}`,
-              'Accept': 'application/json'
-            }
-          }
-        );
-
-        // Add AI response and update UI
-        const aiMessage = { 
-          role: 'assistant',
-          content: response.data.choices[0].message.content,
-          timestamp: new Date().toISOString()
-        };
-
-        // Update conversation with AI response and remove thinking state
-        const finalConversation = {
-          ...updatedConversation,
-          messages: [...updatedConversation.messages, aiMessage],
-          isThinking: false,
-          updatedAt: new Date().toISOString()
-        };
-
-        setConversations(prev => [
-          finalConversation,
-          ...prev.filter(c => c?.id !== updatedConversation.id)
-        ]);
-        setCurrentConversation(finalConversation);
-
-      } catch (error) {
-        console.error('Failed to send message:', error);
-        
-        // Check for insufficient balance error
-        const isInsufficientBalance = 
-          error.response?.status === 402 || 
-          error.response?.data?.error?.code === 'insufficient_balance' ||
-          error.response?.data?.originalError?.code === 'INSUFFICIENT_BALANCE';
-
-        if (isInsufficientBalance) {
-          // Get available balance from error message if available
-          const errorMessage = error.response?.data?.originalError?.message || '';
-          const balanceMatch = errorMessage.match(/Available: ([-\d.]+) MULE/);
-          const availableBalance = balanceMatch ? balanceMatch[1] : null;
-
-          // Set insufficient balance state
-          setInsufficientBalance(true);
-          setBalanceInfo({ availableBalance });
-
-          // Add insufficient balance message to the conversation
-          const insufficientBalanceMessage = {
-            role: 'assistant',
-            content: 'INSUFFICIENT_BALANCE',
-            timestamp: new Date().toISOString(),
-            metadata: {
-              availableBalance,
-              type: 'insufficient_balance'
-            }
-          };
-
-          // Update conversation with the error message and remove thinking state
-          const errorConversation = {
-            ...updatedConversation,
-            messages: [...updatedConversation.messages, insufficientBalanceMessage],
-            isThinking: false,
-            updatedAt: new Date().toISOString()
-          };
-
-          setConversations(prev => [
-            errorConversation,
-            ...prev.filter(c => c?.id !== updatedConversation.id)
-          ]);
-          setCurrentConversation(errorConversation);
-
-        } else {
-          toast.error('Failed to get response from the model');
-          
-          // Remove thinking state in case of error
-          const errorConversation = {
-            ...updatedConversation,
-            isThinking: false
-          };
-          setConversations(prev => [
-            errorConversation,
-            ...prev.filter(c => c?.id !== updatedConversation.id)
-          ]);
-          setCurrentConversation(errorConversation);
-        }
-      }
+      await sendMessage(content, modelId, currentConversation?.id);
     } catch (error) {
-      console.error('Failed to prepare message:', error);
-      toast.error('Failed to prepare message');
+      console.error('Failed to send message:', error);
+      toast.error(error.message || 'Failed to send message');
     }
   };
 
@@ -221,91 +79,6 @@ export default function ChatInterface() {
       changeConversationModel(currentConversation.id, modelId);
     } else {
       createNewConversation(modelId);
-    }
-  };
-
-  const regenerateResponse = async (messageIndex) => {
-    if (!availableModels.length) {
-      toast.error('No models available');
-      return;
-    }
-    
-    const modelId = currentConversation?.modelId || availableModels[0].id;
-    
-    try {
-      const messages = [...currentConversation.messages];
-      
-      // Find the previous user message before this assistant message
-      let userMessageIndex = messageIndex - 1;
-      while (userMessageIndex >= 0 && messages[userMessageIndex].role !== 'user') {
-        userMessageIndex--;
-      }
-      
-      if (userMessageIndex === -1) {
-        toast.error('No user message found to regenerate response');
-        return;
-      }
-
-      // Keep only messages up to the user message
-      const updatedMessages = messages.slice(0, userMessageIndex + 1);
-      
-      // Update conversation state to show only up to user message
-      const updatedConversation = {
-        ...currentConversation,
-        messages: updatedMessages,
-        updatedAt: new Date().toISOString()
-      };
-      
-      // Update the current conversation first
-      setCurrentConversation(updatedConversation);
-
-      // Set pending state
-      setPendingMessage({ 
-        role: 'assistant', 
-        content: '',
-        isLoading: true,
-        timestamp: new Date().toISOString()
-      });
-
-      // Get API response
-      const apiKey = await window.electron.store.get('apiKey');
-      const response = await axios.post(
-        `${window.electron.config.API_URL}/v1/chat/completions`,
-        {
-          model: modelId,
-          messages: updatedMessages,
-          temperature: 0.7,
-          max_tokens: 4096,
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Accept': 'application/json'
-          }
-        }
-      );
-
-      // Create assistant message
-      const assistantMessage = { 
-        role: 'assistant',
-        content: response.data.choices[0].message.content,
-        timestamp: new Date().toISOString()
-      };
-      
-      // Update conversation with new response
-      const finalConversation = {
-        ...updatedConversation,
-        messages: [...updatedMessages, assistantMessage],
-        updatedAt: new Date().toISOString()
-      };
-      
-      setCurrentConversation(finalConversation);
-
-    } catch (error) {
-      console.error('Failed to regenerate response:', error);
-      toast.error('Failed to regenerate response');
-    } finally {
-      setPendingMessage(null);
     }
   };
 
@@ -373,7 +146,9 @@ export default function ChatInterface() {
     );
   }
 
-  if (!availableModels.length) {
+  const hasAvailableModels = localModels.length > 0 || networkModels.length > 0;
+
+  if (!hasAvailableModels) {
     return (
       <div className="flex-1 flex items-center justify-center p-4">
         <div className="text-center text-gray-400 max-w-md">
@@ -403,9 +178,10 @@ export default function ChatInterface() {
         <div className="container max-w-4xl mx-auto px-4 py-2">
           <div className="flex items-center gap-4">
             <div className="flex-1 flex items-center gap-2">
+              🤖
               <ModelSelector
-                models={availableModels}
-                selectedModelId={currentConversation?.modelId || availableModels[0].id}
+                models={[...localModels.map(m => ({ ...m, type: 'local' })), ...networkModels]}
+                selectedModelId={currentConversation?.modelId || (localModels[0]?.id || networkModels[0]?.id)}
                 onModelChange={handleModelChange}
                 disabled={isLoading}
               />
@@ -423,39 +199,39 @@ export default function ChatInterface() {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto">
-        <div className="container max-w-4xl mx-auto">
-          {!currentConversation?.messages?.length ? (
-            <div className="h-[calc(100vh-200px)] flex items-center justify-center">
-              <div className="text-center text-gray-400">
-                <div className="text-4xl mb-4">💭</div>
-                <h3 className="text-xl font-semibold mb-2">Start a Conversation</h3>
-                <p className="text-sm">
-                  Type a message to begin your conversation with {availableModels.find(m => m.id === (currentConversation?.modelId || availableModels[0].id))?.id}
-                </p>
-              </div>
+        {!currentConversation?.messages?.length ? (
+          <div className="h-[calc(100vh-200px)] flex items-center justify-center">
+            <div className="text-center text-gray-400">
+              <div className="text-4xl mb-4">💭</div>
+              <h3 className="text-xl font-semibold mb-2">Start a Conversation</h3>
+              <p className="text-sm">
+                Type a message to begin your conversation with {availableModels.find(m => m.id === (currentConversation?.modelId || availableModels[0].id))?.id}
+              </p>
             </div>
-          ) : (
-            <div className="divide-y divide-gray-700/50">
-              {currentConversation.messages.map((message, index) => (
-                message.content === 'INSUFFICIENT_BALANCE' ? (
-                  <InsufficientBalanceMessage
-                    key={`${message.timestamp}-${index}`}
-                    availableBalance={message.metadata?.availableBalance}
-                  />
-                ) : (
-                  <ChatMessage 
-                    key={`${message.timestamp}-${index}`} 
-                    message={message}
-                    onDelete={() => deleteMessage(currentConversation.id, index)}
-                    onEdit={(newContent, shouldRegenerate) => editMessage(currentConversation.id, index, newContent, shouldRegenerate)}
-                    onRegenerate={(messageIndex) => regenerateResponse(messageIndex)}
-                    isLoading={isLoading}
-                    messageIndex={index}
-                    totalMessages={currentConversation.messages.length}
-                  />
-                )
-              ))}
-              {currentConversation?.isThinking && (
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-700/50">
+            {currentConversation.messages.map((message, index) => (
+              message.content === 'INSUFFICIENT_BALANCE' ? (
+                <InsufficientBalanceMessage
+                  key={`${message.timestamp}-${index}`}
+                  availableBalance={message.metadata?.availableBalance}
+                />
+              ) : (
+                <ChatMessage 
+                  key={`${message.timestamp}-${index}`} 
+                  message={message}
+                  onDelete={() => deleteMessage(currentConversation.id, index)}
+                  onEdit={(newContent, shouldRegenerate) => editMessage(currentConversation.id, index, newContent, shouldRegenerate)}
+                  onRegenerate={() => regenerateResponse(index)}
+                  isLoading={isLoading}
+                  messageIndex={index}
+                  totalMessages={currentConversation.messages.length}
+                />
+              )
+            ))}
+            {currentConversation?.isThinking && (
+              <div className={`w-full bg-gray-800/50`}>
                 <div className="container max-w-4xl mx-auto px-4 py-6">
                   <div className="flex gap-6">
                     <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-gray-700">
@@ -471,10 +247,11 @@ export default function ChatInterface() {
                     </div>
                   </div>
                 </div>
-              )}
-            </div>
-          )}
-        </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} style={{ height: '24px' }} />
+          </div>
+        )}
       </div>
 
       {/* Chat Input */}

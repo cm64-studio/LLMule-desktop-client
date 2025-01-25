@@ -71,7 +71,7 @@ export default function AuthScreen() {
     <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-white">Welcome to LLMule</h1>
+          <h1 className="text-2xl font-bold text-white">Welcome to ⚡︎ LLMule</h1>
           <p className="mt-2 text-gray-400">Share your LLMs with the world</p>
         </div>
 
@@ -82,7 +82,7 @@ export default function AuthScreen() {
               <h2 className="text-xl font-semibold text-white">Check Your Email</h2>
               <div className="space-y-2 text-gray-400">
                 <p>We've sent your API key to <span className="text-white">{email}</span></p>
-                <p className="text-sm">Please check your inbox and spam folder. It should arrive within a few minutes.</p>
+                <p className="text-sm">Please check your inbox. It should arrive within a few moments.</p>
               </div>
             </div>
             <button

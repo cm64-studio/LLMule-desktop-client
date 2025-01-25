@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld('electron', {
     getModels: () => ipcRenderer.invoke('llm:models'),
     connect: (models) => ipcRenderer.invoke('llm:connect', models),
     disconnect: () => ipcRenderer.invoke('llm:disconnect'),
+    chat: (params) => ipcRenderer.invoke('llm:chat', params),
     onActivity: (callback) => {
       activityCallback = callback;
     },

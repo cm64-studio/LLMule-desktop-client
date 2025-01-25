@@ -7,6 +7,10 @@ class LLMClient {
 }
 
 export class OllamaClient extends LLMClient {
+  constructor() {
+    this.baseUrl = 'http://localhost:11434';
+  }
+
   async generateCompletion(model, messages, options = {}) {
     try {
       const response = await axios.post('http://localhost:11434/api/chat', {
@@ -51,39 +55,38 @@ export class OllamaClient extends LLMClient {
   }
 }
 
-export class LMStudioClient extends LLMClient {
-  async generateCompletion(model, messages, options = {}) {
-    try {
-      const response = await axios.post(
-        'http://localhost:1234/v1/chat/completions',
-        {
-          model,
-          messages,
-          temperature: options.temperature || 0.7,
-          max_tokens: options.max_tokens || 4096,
-          stream: false
-        }
-      );
+export class LMStudioClient {
+  constructor() {
+    this.baseUrl = 'http://localhost:1234/v1';
+  }
 
-      return {
-        choices: response.data.choices,
-        usage: response.data.usage || {
-          prompt_tokens: 0,
-          completion_tokens: 0,
-          total_tokens: 0
-        }
-      };
+  async chat({ model, messages, temperature = 0.7, max_tokens = 4096 }) {
+    try {
+      const response = await axios.post(`${this.baseUrl}/chat/completions`, {
+        model,
+        messages,
+        temperature,
+        max_tokens,
+        stream: false
+      });
+
+      return response.data.choices[0].message;
     } catch (error) {
-      throw new Error(`LM Studio error: ${error.message}`);
+      console.error('LMStudio chat error:', error);
+      throw new Error(error.response?.data?.error?.message || error.message || 'Failed to get response from LM Studio');
     }
   }
 }
 
 export class ExoClient extends LLMClient {
+  constructor() {
+    this.baseUrl = 'http://localhost:52415';
+  }
+
   async generateCompletion(model, messages, options = {}) {
     try {
       const response = await axios.post(
-        'http://localhost:52415/v1/chat/completions',
+        `${this.baseUrl}/v1/chat/completions`,
         {
           model,
           messages,
@@ -108,10 +111,14 @@ export class ExoClient extends LLMClient {
 }
 
 export class VLLMClient extends LLMClient {
+  constructor() {
+    this.baseUrl = 'http://localhost:8000/v1';
+  }
+
   async generateCompletion(model, messages, options = {}) {
     try {
       const response = await axios.post(
-        'http://localhost:8000/v1/chat/completions',
+        `${this.baseUrl}/chat/completions`,
         {
           model,
           messages,

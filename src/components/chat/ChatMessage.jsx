@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import remarkGfm from 'remark-gfm';
-import { PencilIcon, TrashIcon, ClipboardIcon, CheckIcon, ArrowPathIcon, Square2StackIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, TrashIcon, ClipboardIcon, CheckIcon, ArrowPathIcon, ArrowsPointingOutIcon } from '@heroicons/react/24/outline';
 import { useChat } from '../../contexts/ChatContext';
 import { toast } from 'react-hot-toast';
 
@@ -11,12 +11,10 @@ export default function ChatMessage({ message, onDelete, onEdit, onRegenerate, i
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState(message.content);
   const [isCopied, setIsCopied] = useState(false);
-  const { createNewConversation, currentConversation } = useChat();
+  const { createNewConversation, currentConversation, sendMessage } = useChat();
 
-  // Show loading indicator only for the last message when there's a pending response
-  const showLoading = currentConversation?.pendingResponse && 
-                     messageIndex === (currentConversation.messages.length - 1) &&
-                     message.role === 'user';
+  const isLastMessage = messageIndex === totalMessages - 1;
+  const isLastUserMessage = message.role === 'user' && isLastMessage;
 
   const handleFork = async () => {
     try {
@@ -64,10 +62,17 @@ export default function ChatMessage({ message, onDelete, onEdit, onRegenerate, i
     }
   };
 
-  const isLastUserMessage = message.role === 'user' && messageIndex < totalMessages - 1;
+  const handleResend = async () => {
+    try {
+      onRegenerate(messageIndex);
+    } catch (error) {
+      console.error('Failed to resend message:', error);
+      toast.error('Failed to resend message');
+    }
+  };
 
   return (
-    <div className={`${message.role === 'assistant' ? 'bg-gray-800/50' : ''}`}>
+    <div className={`w-full ${message.role === 'assistant' ? 'bg-gray-800/50' : ''}`}>
       <div className="container max-w-4xl mx-auto px-4 py-6">
         <div className="flex gap-6">
           <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-gray-700">
@@ -139,6 +144,15 @@ export default function ChatMessage({ message, onDelete, onEdit, onRegenerate, i
                   <>
                     {message.role === 'user' ? (
                       <>
+                        {isLastUserMessage && (
+                          <button
+                            onClick={handleResend}
+                            className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-gray-700"
+                            title="Resend message"
+                          >
+                            <ArrowPathIcon className="w-4 h-4" />
+                          </button>
+                        )}
                         <button
                           onClick={handleEdit}
                           className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-gray-700"
@@ -168,7 +182,7 @@ export default function ChatMessage({ message, onDelete, onEdit, onRegenerate, i
                           className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-gray-700"
                           title="Fork conversation from here"
                         >
-                          <Square2StackIcon className="w-4 h-4" />
+                          <ArrowsPointingOutIcon className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => onDelete()}
