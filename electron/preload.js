@@ -18,6 +18,9 @@ contextBridge.exposeInMainWorld('electron', {
     get: (key) => ipcRenderer.invoke('store:get', key),
     set: (key, value) => ipcRenderer.invoke('store:set', key, value),
   },
+  app: {
+    getVersion: () => ipcRenderer.invoke('app:getVersion')
+  },
   auth: {
     register: (email) => ipcRenderer.invoke('auth:register', email),
     checkVerification: () => ipcRenderer.invoke('auth:checkVerification'),
@@ -30,6 +33,7 @@ contextBridge.exposeInMainWorld('electron', {
     connect: (models) => ipcRenderer.invoke('llm:connect', models),
     disconnect: () => ipcRenderer.invoke('llm:disconnect'),
     chat: (params) => ipcRenderer.invoke('llm:chat', params),
+    cancel: (requestId) => ipcRenderer.invoke('llm:cancel', requestId),
     onActivity: (callback) => {
       activityCallback = callback;
     },

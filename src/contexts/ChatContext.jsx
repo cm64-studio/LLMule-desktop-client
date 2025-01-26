@@ -20,6 +20,7 @@ export function ChatProvider({ children }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [chatConfig, setChatConfig] = useState(DEFAULT_CONFIG);
+  const [currentRequestId, setCurrentRequestId] = useState(null);
   const { networkModels, localModels } = useNetwork();
 
   // Load chat configuration from localStorage
@@ -157,7 +158,6 @@ export function ChatProvider({ children }) {
 
   const sendMessage = async (content, modelId, conversationId = null, existingConversation = null) => {
     console.log('SendMessage - Initial state:', { content, modelId, conversationId });
-    console.log('Current conversation:', currentConversation);
     
     if (!networkModels.length && !localModels.length) {
       toast.error('No models available');
@@ -172,6 +172,10 @@ export function ChatProvider({ children }) {
     }
   
     let conversation;
+    let requestError = null;
+    const requestId = Date.now().toString();
+    setCurrentRequestId(requestId);
+    
     try {
       const userMessage = { 
         role: 'user', 
@@ -206,6 +210,7 @@ export function ChatProvider({ children }) {
       
       setConversations(prev => [conversation, ...prev.filter(c => c.id !== conversation.id)]);
       setCurrentConversation(conversation);
+      setIsLoading(true);
   
       const messages = chatConfig.systemPrompt ? 
         [{ role: 'system', content: chatConfig.systemPrompt }, ...conversation.messages] :
@@ -217,7 +222,8 @@ export function ChatProvider({ children }) {
         temperature: chatConfig.temperature,
         max_tokens: chatConfig.maxTokens,
         type: localModels.find(m => m.name === modelId || m.id === modelId)?.type,
-        isLocal: localModels.some(m => m.name === modelId || m.id === modelId)
+        isLocal: localModels.some(m => m.name === modelId || m.id === modelId),
+        requestId
       });
   
       if (!response?.content) throw new Error('Invalid response');
@@ -234,13 +240,63 @@ export function ChatProvider({ children }) {
       setCurrentConversation(conversation);
   
     } catch (error) {
+      requestError = error;
+      const isCancelled = error.message?.includes('Request cancelled by user');
       console.error('Model inference failed:', error);
+      
       if (conversation) {
-        conversation.isThinking = false;
-        setConversations(prev => [conversation, ...prev.filter(c => c.id !== conversation.id)]);
-        setCurrentConversation(conversation);
+        // Only update conversation state if it wasn't a cancellation
+        if (!isCancelled) {
+          conversation.isThinking = false;
+          setConversations(prev => [conversation, ...prev.filter(c => c.id !== conversation.id)]);
+          setCurrentConversation(conversation);
+        }
       }
+      
+      // Re-throw the error for the UI to handle
       throw error;
+    } finally {
+      // Only reset loading state if it wasn't a cancellation
+      if (!requestError?.message?.includes('Request cancelled by user')) {
+        setIsLoading(false);
+        setCurrentRequestId(null);
+      }
+    }
+  };
+
+  const cancelCurrentRequest = async () => {
+    if (currentRequestId) {
+      try {
+        await window.electron.llm.cancel(currentRequestId);
+        
+        // Update conversation state
+        if (currentConversation) {
+          const updatedConversation = {
+            ...currentConversation,
+            isThinking: false,
+            updatedAt: new Date().toISOString()
+          };
+          
+          // Remove the last user message since it was cancelled
+          if (updatedConversation.messages.length > 0 && 
+              updatedConversation.messages[updatedConversation.messages.length - 1].role === 'user') {
+            updatedConversation.messages = updatedConversation.messages.slice(0, -1);
+          }
+          
+          setConversations(prev => [
+            updatedConversation,
+            ...prev.filter(c => c.id !== currentConversation.id)
+          ]);
+          setCurrentConversation(updatedConversation);
+        }
+        
+        setIsLoading(false);
+        setCurrentRequestId(null);
+        toast.success('Generation cancelled');
+      } catch (error) {
+        console.error('Failed to cancel request:', error);
+        toast.error('Failed to cancel request');
+      }
     }
   };
 
@@ -346,35 +402,42 @@ export function ChatProvider({ children }) {
       toast.error('No models available');
       return;
     }
+
+    const conversation = conversations.find(c => c.id === currentConversation.id);
+    if (!conversation) return;
   
     try {
-      const messages = currentConversation.messages;
-      console.log('Before regeneration - messages:', messages);
-  
       let userMessageIndex = messageIndex;
-      if (messages[messageIndex].role === 'assistant') {
-        userMessageIndex = messageIndex - 1;
+
+      while (userMessageIndex >= 0 && conversation.messages[userMessageIndex].role !== 'user') {
+        userMessageIndex--;
       }
-  
-      const userMessage = messages[userMessageIndex];
-      console.log('Found user message:', userMessage);
-  
-      // Keep messages up to user message only
-      const keptMessages = messages.slice(0, userMessageIndex + 1);
-      console.log('Kept messages:', keptMessages);
-  
+
+      if (userMessageIndex === -1) {
+        toast.error('No user message found to regenerate response');
+        return;
+      }
+
+      console.log('userMessageIndex', userMessageIndex);
+
+      // Keep all messages up to the user message, removing the assistant message and any subsequent messages
+      const updatedMessages = conversation.messages.slice(0, userMessageIndex+1);
+      console.log('updatedMessages', updatedMessages);
+
       const updatedConversation = {
-        ...currentConversation,
-        messages: keptMessages,
+        ...conversation,
+        messages: updatedMessages,
         isThinking: true,
-        isRegenerating: true // Add flag
+        updatedAt: new Date().toISOString()
       };
-  
-      setCurrentConversation(updatedConversation);
+
       setConversations(prev => [
         updatedConversation,
-        ...prev.filter(c => c.id !== currentConversation.id)
+        ...prev.filter(c => c.id !== conversation.id)
       ]);
+      setCurrentConversation(updatedConversation);
+
+      const userMessage = conversation.messages[userMessageIndex];
   
       await sendMessage(userMessage.content, currentConversation.modelId, currentConversation.id, updatedConversation);
     } catch (error) {
@@ -400,7 +463,8 @@ export function ChatProvider({ children }) {
     updateConversationTitle,
     regenerateResponse,
     chatConfig,
-    updateChatConfig
+    updateChatConfig,
+    cancelCurrentRequest
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

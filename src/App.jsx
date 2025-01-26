@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Toaster } from 'react-hot-toast'
 import { NetworkProvider } from './contexts/NetworkContext'
+import { UIProvider } from './contexts/NetworkContext'
 import { ChatProvider } from './contexts/ChatContext'
 import MainLayout from './components/layouts/MainLayout'
 import StatusBar from './components/StatusBar'
@@ -66,74 +67,76 @@ function App() {
 
   return (
     <NetworkProvider>
-      <ChatProvider>
-        <div className="min-h-screen bg-gray-900 text-white flex flex-col">
-          {/* Header */}
-          <header className="fixed top-0 left-0 right-0 z-10 bg-gray-900 border-b border-gray-800">
-            <MainLayout>
-              <div className="flex items-center gap-4">
-                
-                <div className="h-6 border-r border-gray-700" />
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setActiveView('chat')}
-                    className={`flex items-center gap-2 px-3 py-1 rounded-full ${
-                      activeView === 'chat' ? 'bg-blue-600' : 'bg-gray-800 hover:bg-gray-700'
-                    }`}
-                  >
-                    <ChatBubbleLeftRightIcon className="w-4 h-4" />
-                    <span>Chat</span>
-                  </button>
-                  <button
-                    onClick={() => setActiveView('network')}
-                    className={`flex items-center gap-2 px-3 py-1 rounded-full ${
-                      activeView === 'network' ? 'bg-blue-600' : 'bg-gray-800 hover:bg-gray-700'
-                    }`}
-                  >
-                    <ShareIcon className="w-4 h-4" />
-                    <span>Network</span>
-                  </button>
-                </div>
-                <StatusBar />
-              </div>
-            </MainLayout>
-          </header>
-
-          {/* Main Content */}
-          <main className="flex-1 pt-[75px]">
-            {activeView === 'chat' ? (
-              <ChatView />
-            ) : (
-              <div className="mx-auto w-full h-full p-4 pb-4">
-                <div className="space-y-4">
-                  <div className="bg-gray-800 rounded-lg p-4">
-                    <ModelList />
+      <UIProvider>
+        <ChatProvider>
+          <div className="min-h-screen bg-gray-900 text-white flex flex-col">
+            {/* Header */}
+            <header className="fixed top-0 left-0 right-0 z-10 bg-gray-900 border-b border-gray-800">
+              <MainLayout>
+                <div className="flex items-center gap-4">
+                  
+                  <div className="h-6 border-r border-gray-700" />
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setActiveView('chat')}
+                      className={`flex items-center gap-2 px-3 py-1 rounded-full ${
+                        activeView === 'chat' ? 'bg-blue-600' : 'bg-gray-800 hover:bg-gray-700'
+                      }`}
+                    >
+                      <ChatBubbleLeftRightIcon className="w-4 h-4" />
+                      <span>Chat</span>
+                    </button>
+                    <button
+                      onClick={() => setActiveView('network')}
+                      className={`flex items-center gap-2 px-3 py-1 rounded-full ${
+                        activeView === 'network' ? 'bg-blue-600' : 'bg-gray-800 hover:bg-gray-700'
+                      }`}
+                    >
+                      <ShareIcon className="w-4 h-4" />
+                      <span>Network</span>
+                    </button>
                   </div>
-                  <div className="bg-gray-800 rounded-lg p-4">
-                    <ActivityLog />
+                  <StatusBar />
+                </div>
+              </MainLayout>
+            </header>
+
+            {/* Main Content */}
+            <main className="flex-1 pt-[69px]">
+              {activeView === 'chat' ? (
+                <ChatView />
+              ) : (
+                <div className="mx-auto w-full h-full p-4 pb-4">
+                  <div className="space-y-4">
+                    <div className="bg-gray-800 rounded-lg p-4">
+                      <ModelList />
+                    </div>
+                    <div className="bg-gray-800 rounded-lg p-4">
+                      <ActivityLog />
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-          </main>
+              )}
+            </main>
 
-          {/* Footer */}
-          <footer className="fixed bottom-0 left-0 right-0 z-10 bg-gray-900 border-t border-gray-800">
-            <NetworkStats />
-          </footer>
-        </div>
-        <Toaster 
-          position="bottom-right"
-          toastOptions={{
-            style: {
-              background: '#1f2937',
-              color: '#fff',
-              borderRadius: '8px',
-              border: '1px solid #374151'
-            }
-          }}
-        />
-      </ChatProvider>
+            {/* Footer */}
+            <footer className="fixed bottom-0 left-0 right-0 z-10 bg-gray-900 border-t border-gray-800">
+              <NetworkStats />
+            </footer>
+          </div>
+          <Toaster 
+            position="bottom-right"
+            toastOptions={{
+              style: {
+                background: '#1f2937',
+                color: '#fff',
+                borderRadius: '8px',
+                border: '1px solid #374151'
+              }
+            }}
+          />
+        </ChatProvider>
+      </UIProvider>
     </NetworkProvider>
   )
 }

@@ -4,6 +4,8 @@ import axios from 'axios';
 
 const NetworkContext = createContext()
 
+export const UIContext = createContext();
+
 export function NetworkProvider({ children }) {
   const [isConnected, setIsConnected] = useState(false)
   const [localModels, setLocalModels] = useState([])
@@ -11,6 +13,7 @@ export function NetworkProvider({ children }) {
   const [isDetecting, setIsDetecting] = useState(false)
   const [balance, setBalance] = useState(0)
   const [activity, setActivity] = useState([])
+  const [selectedModels, setSelectedModels] = useState([])
   const [tokenStats, setTokenStats] = useState({
     tokensPerMinute: 0,
     tokensPerSecond: 0,
@@ -84,7 +87,21 @@ export function NetworkProvider({ children }) {
       // Compare new models with existing ones
       setLocalModels(prevModels => {
         const hasChanges = JSON.stringify(prevModels) !== JSON.stringify(models);
-        return hasChanges ? models : prevModels;
+        if (hasChanges) {
+          // Update selected models when local models change
+          setSelectedModels(prev => {
+            const validModels = prev.filter(modelName => 
+              models.some(m => m.name === modelName)
+            );
+            // Add any new models to selection
+            const newModels = models
+              .filter(m => !prev.includes(m.name))
+              .map(m => m.name);
+            return [...validModels, ...newModels];
+          });
+          return models;
+        }
+        return prevModels;
       });
       
       if (models.length === 0 && isConnected) {
@@ -175,14 +192,16 @@ export function NetworkProvider({ children }) {
     };
   }, [checkBalance, detectLocalServices, fetchNetworkModels, refreshModels, updateTokenStats]);
 
-  const connect = async () => {
+  const connect = async (models = null) => {
     try {
-      if (!localModels.length) {
-        throw new Error('No local models detected. Please make sure your LLM service is running.');
+      const modelsToShare = models || localModels.filter(m => selectedModels.includes(m.name));
+      
+      if (!modelsToShare.length) {
+        throw new Error('No models selected for sharing. Please select at least one model.');
       }
 
-      console.log('Connecting with models:', localModels);
-      await window.electron.llm.connect(localModels);
+      console.log('Connecting with models:', modelsToShare);
+      await window.electron.llm.connect(modelsToShare);
       setIsConnected(true);
       toast.success('Connected to LLMule network');
       await checkBalance(false);
@@ -212,8 +231,11 @@ export function NetworkProvider({ children }) {
     isDetecting,
     balance,
     activity: activity || [], // Ensure activity is always an array
-    tokenStats, // Add tokenStats to context value
+    tokenStats,
+    selectedModels,
+    setSelectedModels,
     refreshModels,
+    detectServices: detectLocalServices,
     connect,
     disconnect
   };
@@ -231,4 +253,24 @@ export const useNetwork = () => {
     throw new Error('useNetwork must be used within NetworkProvider')
   }
   return context
+}
+
+export function UIProvider({ children }) {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  const toggleSidebar = () => setIsSidebarOpen(prev => !prev);
+
+  return (
+    <UIContext.Provider value={{ isSidebarOpen, toggleSidebar }}>
+      {children}
+    </UIContext.Provider>
+  );
+}
+
+export function useUI() {
+  const context = useContext(UIContext);
+  if (!context) {
+    throw new Error('useUI must be used within a UIProvider');
+  }
+  return context;
 }

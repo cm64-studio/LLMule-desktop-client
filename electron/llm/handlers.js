@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron'
 import { ModelDetector } from './detector'
 import { NetworkClient } from './network'
-import { LMStudioClient } from './clients'
+import { LMStudioClient, OllamaClient, ExoClient, VLLMClient } from './clients'
 import axios from 'axios';
 import Store from 'electron-store';
 
@@ -9,6 +9,12 @@ const store = new Store();
 let networkClient = null;
 const detector = new ModelDetector();
 const lmStudioClient = new LMStudioClient();
+const ollamaClient = new OllamaClient();
+const exoClient = new ExoClient();
+const vllmClient = new VLLMClient();
+
+// Keep track of active requests
+let activeRequests = new Map();
 
 // Retry configuration
 const MAX_RETRIES = 3;
@@ -39,27 +45,56 @@ export function setupLLMHandlers() {
     return await detector.detectAll();
   });
 
-  ipcMain.handle('llm:chat', async (_, { model, messages, temperature, max_tokens, type, isLocal }) => {
+  ipcMain.handle('llm:chat', async (event, { model, messages, temperature, max_tokens, type, isLocal, requestId }) => {
+    const abortController = new AbortController();
+    
+    // Store the abort controller
+    activeRequests.set(requestId, abortController);
+
     try {
       if (isLocal) {
-        if (type === 'lmstudio') {
-          return await retryWithBackoff(async () => {
-            const response = await lmStudioClient.chat({ model, messages, temperature, max_tokens });
-            if (!response || !response.content) {
-              throw new Error('Invalid response from local model');
-            }
-            return response;
-          });
-        } else {
-          throw new Error('Unsupported local model type');
+        let client;
+        switch (type) {
+          case 'lmstudio':
+            client = lmStudioClient;
+            break;
+          case 'ollama':
+            client = ollamaClient;
+            break;
+          case 'exo':
+            client = exoClient;
+            break;
+          case 'vllm':
+            client = vllmClient;
+            break;
+          default:
+            throw new Error(`Unsupported local model type: ${type}`);
         }
+
+        const response = await retryWithBackoff(async () => {
+          const response = await client.generateCompletion(model, messages, { 
+            temperature, 
+            max_tokens,
+            signal: abortController.signal 
+          });
+          if (!response || (!response.content && !response.choices?.[0]?.message?.content)) {
+            throw new Error('Invalid response from local model');
+          }
+          // Normalize response format
+          return response.choices?.[0]?.message || response;
+        });
+
+        // Clean up after successful completion
+        activeRequests.delete(requestId);
+        return response;
+
       } else {
         const apiKey = await store.get('apiKey');
         if (!apiKey) {
           throw new Error('API key not found');
         }
 
-        return await retryWithBackoff(async () => {
+        const response = await retryWithBackoff(async () => {
           const response = await axios.post(
             `${process.env.API_URL}/v1/chat/completions`,
             {
@@ -74,6 +109,7 @@ export function setupLLMHandlers() {
                 'Accept': 'application/json'
               },
               timeout: 60000, // 60 second timeout
+              signal: abortController.signal
             }
           );
 
@@ -83,9 +119,20 @@ export function setupLLMHandlers() {
 
           return response.data.choices[0].message;
         });
+
+        // Clean up after successful completion
+        activeRequests.delete(requestId);
+        return response;
       }
     } catch (error) {
+      // Clean up on error
+      activeRequests.delete(requestId);
+      
       console.error('Chat error:', error);
+      
+      if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+        throw new Error('Request cancelled by user');
+      }
       
       // Handle specific error types
       if (error.code === 'ECONNREFUSED') {
@@ -107,6 +154,16 @@ export function setupLLMHandlers() {
       
       throw error;
     }
+  });
+
+  ipcMain.handle('llm:cancel', async (_, requestId) => {
+    const controller = activeRequests.get(requestId);
+    if (controller) {
+      controller.abort();
+      activeRequests.delete(requestId);
+      return { success: true };
+    }
+    return { success: false, error: 'Request not found' };
   });
 
   ipcMain.handle('llm:connect', async (_, models) => {

@@ -1,7 +1,7 @@
 {
   "name": "llmule-desktop",
   "private": true,
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "LLMule Desktop - Decentralized AI Computing",
   "author": {
     "name": "Andrés Cufari",
@@ -42,10 +42,6 @@
     "uuid": "^11.0.5",
     "vite-plugin-electron": "^0.29.0",
     "ws": "^8.18.0"
-  },
-  "optionalDependencies": {
-    "bufferutil": "^4.0.9",
-    "utf-8-validate": "^6.0.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

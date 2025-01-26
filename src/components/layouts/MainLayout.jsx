@@ -1,11 +1,13 @@
 import React, { useState, useEffect, Fragment } from 'react'
 import { useNetwork } from '../../contexts/NetworkContext'
+import { useUI } from '../../contexts/NetworkContext'
 import { Menu, Transition } from '@headlessui/react'
 import { ChevronDownIcon } from '@heroicons/react/20/solid'
-import { ArrowRightStartOnRectangleIcon } from '@heroicons/react/24/outline'
+import { ArrowRightStartOnRectangleIcon, Bars3Icon } from '@heroicons/react/24/outline'
 
 export default function MainLayout({ children }) {
   const { isConnected, tokenStats } = useNetwork()
+  const { isSidebarOpen, toggleSidebar } = useUI()
   const [userEmail, setUserEmail] = useState('')
 
   useEffect(() => {
@@ -30,6 +32,13 @@ export default function MainLayout({ children }) {
   return (
     <div className="p-4 flex items-center">
       <div className="flex-1 flex items-center gap-4">
+        <button
+          onClick={toggleSidebar}
+          className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+          title={isSidebarOpen ? "Hide Sidebar" : "Show Sidebar"}
+        >
+          <Bars3Icon className="w-5 h-5 text-gray-400" />
+        </button>
         <h1 className="text-xl font-mono">⚡️ LLMule</h1>
         
         {/* <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-gray-800">
@@ -56,7 +65,7 @@ export default function MainLayout({ children }) {
             leaveFrom="transform opacity-100 scale-100"
             leaveTo="transform opacity-0 scale-95"
           >
-            <Menu.Items className="absolute right-0 mt-2 w-48 origin-top-right rounded-xl bg-gray-800 shadow-2xl ring-1 ring-white/10 focus:outline-none z-[100]">
+            <Menu.Items className="absolute right-0 mt-2 w-48 origin-top-right rounded-xl bg-gray-800 shadow-2xl ring-1 ring-white/10 focus:outline-none z-14">
               <div className="px-1 py-1">
                 <Menu.Item>
                   {({ active }) => (

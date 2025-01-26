@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { PaperAirplaneIcon } from '@heroicons/react/24/solid';
+import { PaperAirplaneIcon, StopIcon } from '@heroicons/react/24/solid';
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 
 export default function ChatInput({ 
   onSend, 
+  onCancel,
   disabled, 
+  isLoading = false,
   placeholder = "Type a message...",
   insufficientBalance = false,
   balanceInfo = null
@@ -77,9 +79,9 @@ export default function ChatInput({
               onBlur={() => setHasFocus(false)}
               placeholder={insufficientBalance ? "Insufficient balance. Please share models or contact us." : placeholder}
               rows={1}
-              disabled={disabled}
+              disabled={disabled || isLoading}
               className={`w-full bg-transparent text-white px-3 py-2 focus:outline-none resize-none transition-colors ${
-                disabled ? 'opacity-50 cursor-not-allowed' : ''
+                (disabled || isLoading) ? 'opacity-50 cursor-not-allowed' : ''
               }`}
               style={{
                 minHeight: '24px',
@@ -87,22 +89,36 @@ export default function ChatInput({
               }}
             />
           </div>
-          <button
-            type="submit"
-            disabled={!message.trim() || disabled}
-            className={`flex items-center justify-center rounded-lg p-2 h-[36px] w-[36px] flex-shrink-0 transition-colors ${
-              message.trim() && !disabled
-                ? insufficientBalance 
-                  ? 'bg-red-600 hover:bg-red-700 text-white'
-                  : 'bg-blue-600 hover:bg-blue-700 text-white'
-                : 'text-gray-400'
-            } disabled:opacity-50 disabled:cursor-not-allowed`}
-          >
-            <PaperAirplaneIcon className="w-5 h-5" />
-          </button>
+          {isLoading ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                onCancel();
+              }}
+              className="flex items-center justify-center rounded-lg p-2 h-[36px] w-[36px] flex-shrink-0 transition-colors bg-gray-600 hover:bg-gray-500 text-white"
+              title="Stop generating"
+            >
+              <StopIcon className="w-5 h-5" />
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={!message.trim() || disabled}
+              className={`flex items-center justify-center rounded-lg p-2 h-[36px] w-[36px] flex-shrink-0 transition-colors ${
+                message.trim() && !disabled
+                  ? insufficientBalance 
+                    ? 'bg-red-600 hover:bg-red-700 text-white'
+                    : 'bg-blue-600 hover:bg-blue-700 text-white'
+                  : 'text-gray-400'
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
+            >
+              <PaperAirplaneIcon className="w-5 h-5" />
+            </button>
+          )}
         </div>
         <div className="mt-2 text-xs text-gray-400 text-center">
-          Press Enter to send, Shift + Enter for new line
+          {isLoading ? 'Press Stop to cancel generation' : 'Press Enter to send, Shift + Enter for new line'}
         </div>
       </div>
     </form>

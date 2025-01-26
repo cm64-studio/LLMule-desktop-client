@@ -21,7 +21,8 @@ export default function ChatInterface() {
     updateConversationTitle,
     chatConfig,
     updateChatConfig,
-    regenerateResponse
+    regenerateResponse,
+    cancelCurrentRequest
   } = useChat();
   
   const { isConnected, refreshModels, isDetecting, localModels, networkModels } = useNetwork();
@@ -70,7 +71,10 @@ export default function ChatInterface() {
       await sendMessage(content, modelId, currentConversation?.id);
     } catch (error) {
       console.error('Failed to send message:', error);
-      toast.error(error.message || 'Failed to send message');
+      // Don't show error toast for cancellations
+      if (!error.message?.includes('Request cancelled by user')) {
+        toast.error(error.message || 'Failed to send message');
+      }
     }
   };
 
@@ -175,7 +179,7 @@ export default function ChatInterface() {
     <div className="flex-1 flex flex-col h-full">
       {/* Header with model selector */}
       <div className="bg-gray-800/50 border-b border-gray-700 sticky top-0 z-10">
-        <div className="container max-w-4xl mx-auto px-4 py-2">
+        <div className="container max-w-4xl mx-auto px-4 py-3">
           <div className="flex items-center gap-4">
             <div className="flex-1 flex items-center gap-2">
               🤖
@@ -255,11 +259,13 @@ export default function ChatInterface() {
       </div>
 
       {/* Chat Input */}
-      <div className="border-t border-gray-700">
-        <div className="container mx-auto">
+      <div className="border-t border-gray-700 bg-gray-800">
+        <div className="container mx-auto ">
           <ChatInput
             onSend={handleSend}
+            onCancel={cancelCurrentRequest}
             disabled={isLoading && !insufficientBalance}
+            isLoading={isLoading}
             pendingMessage={pendingMessage}
             setPendingMessage={setPendingMessage}
             insufficientBalance={insufficientBalance}
