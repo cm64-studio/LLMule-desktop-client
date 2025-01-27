@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { PaperAirplaneIcon, StopIcon } from '@heroicons/react/24/solid';
-import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { ExclamationTriangleIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 
 export default function ChatInput({ 
@@ -10,7 +10,8 @@ export default function ChatInput({
   isLoading = false,
   placeholder = "Type a message...",
   insufficientBalance = false,
-  balanceInfo = null
+  balanceInfo = null,
+  isLocalModel = false
 }) {
   const [message, setMessage] = useState('');
   const [hasFocus, setHasFocus] = useState(false);
@@ -117,8 +118,18 @@ export default function ChatInput({
             </button>
           )}
         </div>
-        <div className="mt-2 text-xs text-gray-400 text-center">
-          {isLoading ? 'Press Stop to cancel generation' : 'Press Enter to send, Shift + Enter for new line'}
+        <div className="mt-2 space-y-1">
+          <div className="text-xs text-gray-400 text-center">
+            {isLoading ? 'Press Stop to cancel generation' : 'Press Enter to send, Shift + Enter for new line'}
+          </div>
+          <div className="flex items-center justify-center gap-1 text-xs">
+            <ShieldCheckIcon className="w-3.5 h-3.5" />
+            <span className={`${isLocalModel ? 'text-green-400' : 'text-blue-400'}`}>
+              {isLocalModel 
+                ? 'This conversation is completely private, processed only by your local model'
+                : 'Chat is anonymous. Avoid sharing sensitive data, passwords, or personal information'}
+            </span>
+          </div>
         </div>
       </div>
     </form>

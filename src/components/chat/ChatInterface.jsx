@@ -25,7 +25,7 @@ export default function ChatInterface() {
     cancelCurrentRequest
   } = useChat();
   
-  const { isConnected, refreshModels, isDetecting, localModels, networkModels } = useNetwork();
+  const { isConnected, refreshModels, isDetecting, localModels, networkModels, checkBalance } = useNetwork();
   const messagesEndRef = useRef(null);
   const [pendingMessage, setPendingMessage] = useState(null);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -69,6 +69,14 @@ export default function ChatInterface() {
     try {
       const modelId = currentConversation?.modelId || availableModels[0].id;
       await sendMessage(content, modelId, currentConversation?.id);
+      
+      // Check balance after using network (spending tokens)
+      const selectedModel = [...localModels, ...networkModels].find(m => m.id === modelId);
+      if (!selectedModel?.type || selectedModel.type === 'network') {
+        setTimeout(() => {
+          checkBalance(true);
+        }, 10000);
+      }
     } catch (error) {
       console.error('Failed to send message:', error);
       // Don't show error toast for cancellations
@@ -270,6 +278,7 @@ export default function ChatInterface() {
             setPendingMessage={setPendingMessage}
             insufficientBalance={insufficientBalance}
             balanceInfo={balanceInfo}
+            isLocalModel={currentConversation?.modelId ? localModels.some(m => m.name === currentConversation.modelId || m.id === currentConversation.modelId) : false}
           />
         </div>
       </div>

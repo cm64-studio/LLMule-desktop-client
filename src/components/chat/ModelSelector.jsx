@@ -44,22 +44,22 @@ const SpeedIndicator = ({ tokensPerSecond, successRate }) => {
     return (
       <div className="text-gray-400 text-xs flex items-center gap-2">
         {successRate !== undefined && (
-          <span className={getSuccessRateColor(successRate)}>{successRate}%</span>
+          <span className={getSuccessRateColor(successRate)}>⚡︎ {successRate}%</span>
         )}
       </div>
     );
   }
 
-  let speedText = 'Slow';
+  let speedText = '⏲ Slow';
   let speedClass = 'text-red-400';
   if (tokensPerSecond > 100) {
-    speedText = 'Very Fast';
+    speedText = '⏲ Very Fast';
     speedClass = 'text-green-400';
   } else if (tokensPerSecond > 50) {
-    speedText = 'Fast';
+    speedText = '⏲ Fast';
     speedClass = 'text-yellow-400';
   } else if (tokensPerSecond > 20) {
-    speedText = 'Medium';
+    speedText = '⏲ Normal';
     speedClass = 'text-yellow-600';
   }
 
@@ -67,7 +67,7 @@ const SpeedIndicator = ({ tokensPerSecond, successRate }) => {
     <div className="flex items-center gap-2 text-xs">
       <span className={speedClass}>{speedText}</span>
       {successRate !== undefined && (
-        <span className={getSuccessRateColor(successRate)}>{successRate}% success</span>
+        <span className={getSuccessRateColor(successRate)}>⚡︎ {successRate}%</span>
       )}
     </div>
   );
@@ -356,6 +356,29 @@ export default function ModelSelector({ selectedModelId, onModelChange, disabled
           </div>
 
           <div className="max-h-[60vh] overflow-y-auto">
+            {/* Favorites Section */}
+            {favoriteModels.length > 0 && (
+              <div>
+                <div className="px-3 py-2 text-xs font-medium text-gray-400 bg-gray-800/50">
+                  Favorites
+                </div>
+                {favoriteModels.map((model) => (
+                  <ModelItem
+                    key={model.id}
+                    model={model}
+                    isSelected={model.id === selectedModelId || model.name === selectedModelId}
+                    onSelect={(model) => {
+                      onModelChange(model.name || model.id);
+                      setIsOpen(false);
+                      setSearchQuery('');
+                    }}
+                    isFavorite={favorites.includes(model.id || model.name)}
+                    onToggleFavorite={toggleFavorite}
+                  />
+                ))}
+              </div>
+            )}
+
             {/* Local Models Section - Always First */}
             {localModelsList.length > 0 && (
               <div>

@@ -13,7 +13,6 @@ export function NetworkProvider({ children }) {
   const [isDetecting, setIsDetecting] = useState(false)
   const [balance, setBalance] = useState(0)
   const [activity, setActivity] = useState([])
-  const [selectedModels, setSelectedModels] = useState([])
   const [tokenStats, setTokenStats] = useState({
     tokensPerMinute: 0,
     tokensPerSecond: 0,
@@ -87,21 +86,7 @@ export function NetworkProvider({ children }) {
       // Compare new models with existing ones
       setLocalModels(prevModels => {
         const hasChanges = JSON.stringify(prevModels) !== JSON.stringify(models);
-        if (hasChanges) {
-          // Update selected models when local models change
-          setSelectedModels(prev => {
-            const validModels = prev.filter(modelName => 
-              models.some(m => m.name === modelName)
-            );
-            // Add any new models to selection
-            const newModels = models
-              .filter(m => !prev.includes(m.name))
-              .map(m => m.name);
-            return [...validModels, ...newModels];
-          });
-          return models;
-        }
-        return prevModels;
+        return hasChanges ? models : prevModels;
       });
       
       if (models.length === 0 && isConnected) {
@@ -178,30 +163,33 @@ export function NetworkProvider({ children }) {
       console.log('Activity:', data);
       setActivity(prev => [data, ...prev].slice(0, 50));
       updateTokenStats(data);
+      
+      // Check balance after our local LLM processes a network request (earning tokens)
+      if (data.type === 'completion_success' && isConnected) {
+        setTimeout(() => {
+          checkBalance(true);
+        }, 10000);
+      }
     });
     
     // Set up intervals for periodic checks with silent updates
-    const balanceInterval = setInterval(() => checkBalance(true), 30000);
     const localModelInterval = setInterval(() => detectLocalServices(true), 30000);
-    const networkModelInterval = setInterval(() => fetchNetworkModels(true), 30000);
+    const networkModelInterval = setInterval(() => fetchNetworkModels(true), 60000);
     
     return () => {
-      clearInterval(balanceInterval);
       clearInterval(localModelInterval);
       clearInterval(networkModelInterval);
     };
   }, [checkBalance, detectLocalServices, fetchNetworkModels, refreshModels, updateTokenStats]);
 
-  const connect = async (models = null) => {
+  const connect = async () => {
     try {
-      const modelsToShare = models || localModels.filter(m => selectedModels.includes(m.name));
-      
-      if (!modelsToShare.length) {
-        throw new Error('No models selected for sharing. Please select at least one model.');
+      if (!localModels.length) {
+        throw new Error('No local models detected. Please make sure your LLM service is running.');
       }
 
-      console.log('Connecting with models:', modelsToShare);
-      await window.electron.llm.connect(modelsToShare);
+      console.log('Connecting with models:', localModels);
+      await window.electron.llm.connect(localModels);
       setIsConnected(true);
       toast.success('Connected to LLMule network');
       await checkBalance(false);
@@ -231,13 +219,11 @@ export function NetworkProvider({ children }) {
     isDetecting,
     balance,
     activity: activity || [], // Ensure activity is always an array
-    tokenStats,
-    selectedModels,
-    setSelectedModels,
+    tokenStats, // Add tokenStats to context value
     refreshModels,
-    detectServices: detectLocalServices,
     connect,
-    disconnect
+    disconnect,
+    checkBalance // Add checkBalance to the context
   };
 
   return (
