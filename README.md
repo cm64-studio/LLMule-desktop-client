@@ -3,7 +3,7 @@
 LLMule Desktop is a powerful desktop application that lets you chat with AI models while maintaining complete privacy. It automatically detects your local LLM services and allows you to share them with the LLMule network, creating a decentralized P2P network for AI inference.
 
 <div align="center">
-  <img src="https://llmule-public.s3.us-east-1.amazonaws.com/LLMule.gif" alt="LLMule Desktop Demo" style="max-width: 800px; width: 100%;" />
+  <img src="https://llmule-public.s3.us-east-1.amazonaws.com/LLMule.gif" alt="LLMule Desktop Demo" style="max-width: 100%; width: 100%;" />
   <p><em>LLMule Desktop - Chat with local & network models seamlessly</em></p>
 </div>
 
