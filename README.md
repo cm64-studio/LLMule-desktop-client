@@ -29,7 +29,6 @@ LLMule Desktop is a powerful desktop application that lets you chat with AI mode
   - Local models run completely offline
   - Anonymous chat with network models
   - Secure websocket communication
-  - No API keys or configuration required
 
 ## 🔧 Prerequisites
 
@@ -74,6 +73,6 @@ This project is open-sourced under the MIT License.
 
 ---
 
-Built with ❤️ by [@andycufari](https://github.com/andycufari)
+Built with 💾 by [@andycufari](https://github.com/andycufari)
 
 Let's make AI inference decentralized and privacy-focused!
