@@ -106,12 +106,12 @@ function App() {
               {activeView === 'chat' ? (
                 <ChatView />
               ) : (
-                <div className="mx-auto w-full h-full p-4 pb-4">
-                  <div className="space-y-4">
-                    <div className="bg-gray-800 rounded-lg p-4">
+                <div className="mx-auto w-full h-[calc(100vh-138px)] p-4 pb-4">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-full">
+                    <div className="bg-gray-800 rounded-lg p-4 overflow-auto">
                       <ModelList />
                     </div>
-                    <div className="bg-gray-800 rounded-lg p-4">
+                    <div className="bg-gray-800 rounded-lg p-4 flex flex-col h-full overflow-hidden">
                       <ActivityLog />
                     </div>
                   </div>

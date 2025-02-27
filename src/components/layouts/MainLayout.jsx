@@ -108,7 +108,7 @@ export default function MainLayout({ children }) {
         >
           <Bars3Icon className="w-5 h-5 text-gray-400" />
         </button>
-        <h1 className="text-xl font-semibold">LLMule</h1>
+        <h1 className="text-xl font-semibold">⚡︎ LLMule</h1>
       </div>
 
       <div className="flex items-center gap-3">

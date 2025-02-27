@@ -48,8 +48,8 @@ export default function ModelList() {
       });
       setSelectedModels(initialSelection);
       
-      // Save initial preferences
-      if (localModels.length > 0) {
+      // Update sharing preferences
+      if (Object.keys(initialSelection).length > 0) {
         updateSharingPreferences(initialSelection);
       }
     }
@@ -86,132 +86,125 @@ export default function ModelList() {
   };
 
   return (
-    <div className="flex flex-col">
-      <div className="flex justify-between items-center mb-4">
+    <div className="flex flex-col h-full">
+      <div className="flex justify-between items-center mb-3">
         <h2 className="text-xl text-white">Local Available Models</h2>
         <div className="flex items-center gap-2">
-          <button
+          <button 
             onClick={() => setIsAddModalOpen(true)}
-            className="px-3 py-1 rounded-md bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-2 text-sm"
+            className="inline-flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-md text-sm transition-colors"
           >
             <PlusIcon className="w-4 h-4" />
-            <span>Add Custom</span>
+            Add Custom
           </button>
           <button
             onClick={refreshModels}
             disabled={isDetecting}
-            className="px-3 py-1 rounded-md bg-gray-700 hover:bg-gray-600 text-gray-300 flex items-center gap-2 text-sm"
+            className={`p-2 rounded-md ${isDetecting ? 'bg-gray-700 text-gray-500' : 'bg-gray-700 hover:bg-gray-600 text-white'} transition-colors`}
+            title="Refresh Models"
           >
-            <ArrowPathIcon 
-              className={`w-4 h-4 ${isDetecting ? 'animate-spin' : ''}`} 
-            />
-            <span>Refresh</span>
+            <ArrowPathIcon className={`w-4 h-4 ${isDetecting ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>
-
-      <div className="flex-1 overflow-y-auto min-h-0">
-      {standardModels.length === 0 && customModels.length === 0 ? (
-          <div className="text-center py-6">
-            <div className="mb-4">
-              <h3 className="text-lg font-medium text-white mb-2">⚡︎ Share your compute power ⚡︎</h3>
-              <p className="text-sm text-gray-400 max-w-md mx-auto mb-1">
-                Got GPUs? Join the decentralized AI revolution by sharing local LLMs
-              </p>
-              <p className="text-sm text-gray-400 max-w-md mx-auto">
-                Run any of these services and LLMule will detect them automatically
-              </p>
-            </div>
-
-            <div className="flex flex-wrap justify-center gap-2 text-sm text-gray-300 mb-4">
-              <span className="px-3 py-1 bg-gray-800/50 rounded-lg">・Ollama</span>
-              <span className="px-3 py-1 bg-gray-800/50 rounded-lg">・LM Studio</span>
-              <span className="px-3 py-1 bg-gray-800/50 rounded-lg">・vLLM</span>
-              <span className="px-3 py-1 bg-gray-800/50 rounded-lg">・EXO</span>
-            </div>
-
-            <div className="mt-6">
-              <button
-                onClick={() => setIsAddModalOpen(true)}
-                className="px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-2 mx-auto"
-              >
-                <PlusIcon className="w-5 h-5" />
-                <span>Add Custom LLM</span>
-              </button>
+      
+      <div className="bg-gray-750 border border-gray-700 rounded-md p-3 mb-4">
+        <p className="text-sm text-gray-300">
+          Select which models you want to share with the LLMule network. 
+          Toggle the switch to enable or disable sharing for each model.
+          Changes to model sharing will apply immediately.
+        </p>
+      </div>
+      
+      <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+        {/* Custom Models */}
+        {customModels.length > 0 && (
+          <div className="mb-4">
+            <h3 className="text-base font-medium text-white mb-2 bg-gray-750 px-3 py-1.5 rounded-t-md border-b border-gray-700">
+              Custom Models
+            </h3>
+            <div className="space-y-2">
+              {customModels.map((model) => (
+                <div key={`custom-${model.name}`} className="flex items-center gap-3">
+                  <div className="flex-1">
+                    <CustomModelItem 
+                      model={model}
+                      onRefresh={refreshModels}
+                    />
+                  </div>
+                  <div>
+                    <ToggleSwitch
+                      id={`share-custom-${model.name}`}
+                      isChecked={selectedModels[`${model.type}-${model.name}`] || false}
+                      onChange={(e) => handleModelSelectionChange(`${model.type}-${model.name}`, e.target.checked)}
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-        ) : (
-          <div className="space-y-3">
-            {/* Clarification message */}
-            <div className="mb-4 p-3 bg-blue-900/30 border border-blue-800 rounded-md">
-              <p className="text-sm text-blue-200">
-                Select which models you want to share with the LLMule network. Toggle the switch to enable or disable sharing for each model.
-                {isConnected ? " Changes to model sharing will apply immediately." : " Click the Share toggle to start sharing."}
-              </p>
+        )}
+        
+        {/* Standard Models */}
+        {standardModels.length > 0 && (
+          <div>
+            <h3 className="text-base font-medium text-white mb-2 bg-gray-750 px-3 py-1.5 rounded-t-md border-b border-gray-700">
+              Detected Models
+            </h3>
+            <div className="space-y-2">
+              {standardModels.map((model) => (
+                <div 
+                  key={`${model.type}-${model.name}`}
+                  className="flex items-center gap-3"
+                >
+                  <div className="flex-1 bg-gray-700/50 hover:bg-gray-700 transition-colors rounded-md p-3 flex justify-between items-center">
+                    <div>
+                      <h3 className="text-white font-mono text-sm">{model.name}</h3>
+                      <p className="text-gray-400 text-xs">via {model.type}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-green-500" />
+                      <span className="text-gray-400 text-xs">Ready</span>
+                    </div>
+                  </div>
+                  <div>
+                    <ToggleSwitch
+                      id={`share-${model.type}-${model.name}`}
+                      isChecked={selectedModels[`${model.type}-${model.name}`] || false}
+                      onChange={(e) => handleModelSelectionChange(`${model.type}-${model.name}`, e.target.checked)}
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
-            
-            {/* Display custom models with a heading if any exist */}
-            {customModels.length > 0 && (
-              <>
-                <h3 className="text-sm font-medium text-gray-400 pb-1 border-b border-gray-700">Custom Models</h3>
-                <div className="space-y-2 mb-4">
-                  {customModels.map((model) => (
-                    <div key={`custom-${model.name}`} className="flex items-center gap-3">
-                      <div className="flex-1">
-                        <CustomModelItem 
-                          model={model}
-                          onRefresh={refreshModels}
-                        />
-                      </div>
-                      <div>
-                        <ToggleSwitch
-                          id={`share-custom-${model.name}`}
-                          isChecked={selectedModels[`${model.type}-${model.name}`] || false}
-                          onChange={(e) => handleModelSelectionChange(`${model.type}-${model.name}`, e.target.checked)}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-            
-            {/* Display standard models with a heading if any exist */}
-            {standardModels.length > 0 && (
-              <>
-                <h3 className="text-sm font-medium text-gray-400 pb-1 border-b border-gray-700">Detected Models</h3>
-                <div className="space-y-2">
-                  {standardModels.map((model) => (
-                    <div 
-                      key={`${model.type}-${model.name}`}
-                      className="flex items-center gap-3"
-                    >
-                      <div className="flex-1 bg-gray-700/50 hover:bg-gray-700 transition-colors rounded-md p-3 flex justify-between items-center">
-                        <div>
-                          <h3 className="text-white font-mono text-sm">{model.name}</h3>
-                          <p className="text-gray-400 text-xs">via {model.type}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-green-500" />
-                          <span className="text-gray-400 text-xs">Ready</span>
-                        </div>
-                      </div>
-                      <div>
-                        <ToggleSwitch
-                          id={`share-${model.type}-${model.name}`}
-                          isChecked={selectedModels[`${model.type}-${model.name}`] || false}
-                          onChange={(e) => handleModelSelectionChange(`${model.type}-${model.name}`, e.target.checked)}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
+          </div>
+        )}
+        
+        {/* Empty State */}
+        {localModels.length === 0 && !isDetecting && (
+          <div className="text-center py-8 bg-gray-800/30 rounded-lg border border-gray-700/50">
+            <p className="text-gray-400">No local models detected</p>
+            <p className="text-sm text-gray-500 mt-2">
+              Please make sure your LLM service is running
+            </p>
+            <button
+              onClick={refreshModels}
+              className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm transition-colors"
+            >
+              Check Again
+            </button>
+          </div>
+        )}
+        
+        {/* Loading State */}
+        {isDetecting && (
+          <div className="flex justify-center items-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-blue-500"></div>
+            <span className="ml-3 text-gray-400">Detecting models...</span>
           </div>
         )}
       </div>
-
+      
       <AddCustomModelModal 
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}

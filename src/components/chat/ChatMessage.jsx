@@ -157,31 +157,31 @@ export default function ChatMessage({ message, onDelete, onEdit, onRegenerate, i
                       code({ node, inline, className, children, ...props }) {
                         const match = /language-(\w+)/.exec(className || '');
                         return !inline && match ? (
-                          <div className="relative group not-prose">
-                            <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="relative group not-prose my-4">
+                            <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                               <button
                                 onClick={() => {
                                   navigator.clipboard.writeText(String(children));
                                   toast.success('Code copied to clipboard');
                                 }}
-                                className="p-1 bg-gray-700 rounded hover:bg-gray-600"
+                                className="p-1.5 bg-gray-700/80 backdrop-blur-sm rounded-md hover:bg-gray-600 transition-colors"
                                 title="Copy code"
                               >
                                 <ClipboardIcon className="w-4 h-4" />
                               </button>
                             </div>
-                            <div className="overflow-x-auto bg-gray-900 rounded-lg">
-                              <div className="flex items-center px-4 py-1 bg-gray-800 border-b border-gray-700 text-xs text-gray-400">
-                                <span className="flex-1">{match[1]}</span>
+                            <div className="overflow-hidden bg-gray-900 rounded-lg shadow-lg ring-1 ring-gray-700/50">
+                              <div className="flex items-center px-4 py-2 bg-gray-800/80 text-xs text-gray-400 border-b border-gray-700/50">
+                                <span className="flex-1 font-mono">{match[1]}</span>
                                 <button
                                   onClick={() => {
                                     navigator.clipboard.writeText(String(children));
                                     toast.success('Code copied to clipboard');
                                   }}
-                                  className="p-1 hover:bg-gray-700 rounded"
+                                  className="p-1 hover:bg-gray-700/80 rounded-md transition-colors"
                                   title="Copy code"
                                 >
-                                  <ClipboardIcon className="w-3 h-3" />
+                                  <ClipboardIcon className="w-3.5 h-3.5" />
                                 </button>
                               </div>
                               <SyntaxHighlighter
@@ -191,9 +191,15 @@ export default function ChatMessage({ message, onDelete, onEdit, onRegenerate, i
                                 {...props}
                                 customStyle={{
                                   margin: 0,
-                                  borderRadius: '0 0 0.5rem 0.5rem',
                                   padding: '1rem',
-                                  background: 'transparent'
+                                  background: 'transparent',
+                                  borderRadius: 0,
+                                  border: 'none'
+                                }}
+                                codeTagProps={{
+                                  style: {
+                                    fontFamily: 'JetBrains Mono, Menlo, Monaco, Consolas, "Courier New", monospace'
+                                  }
                                 }}
                               >
                                 {String(children).replace(/\n$/, '')}
@@ -201,7 +207,7 @@ export default function ChatMessage({ message, onDelete, onEdit, onRegenerate, i
                             </div>
                           </div>
                         ) : (
-                          <code className={`${className} bg-gray-800 px-1.5 py-0.5 rounded`} {...props}>
+                          <code className={`${className} font-mono bg-gray-800/70 px-1.5 py-0.5 rounded text-sm`} {...props}>
                             {children}
                           </code>
                         );

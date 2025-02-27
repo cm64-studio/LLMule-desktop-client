@@ -13,22 +13,28 @@ LLMule Desktop is a powerful desktop application that lets you chat with AI mode
   - Chat with local models with complete privacy - your conversations never leave your computer
   - Modern, intuitive UI with real-time responses
   - Support for system prompts and conversation management
+  - Enhanced code block rendering with syntax highlighting and easy copying
+  - Improved error handling with clear error messages
 
 - **Seamless Model Integration**
   - Auto-detection of local LLM services (Ollama, LM Studio, and EXO)
   - No configuration needed - just install and start chatting
   - Easy switching between local and network models
+  - Support for custom models with manual configuration
+  - Search models by name or username for quick access
 
 - **Model Sharing & Network**
   - Optional: Share your local models with the LLMule network
   - Access shared models from other users
   - Built-in token usage tracking and analytics
   - Real-time model status monitoring
+  - Simplified model quality tiers with intuitive labels
 
 - **Security & Privacy**
   - Local models run completely offline
   - Anonymous chat with network models
   - Secure websocket communication
+  - Clear visual indicators for local vs. network models
 
 ## 🔧 Prerequisites
 
@@ -62,6 +68,36 @@ npm run package:mac-arm64  # Apple Silicon
 npm run package:mac-x64    # Intel
 npm run package:win      # Windows
 ```
+
+## 🧠 Adding Custom Models
+
+LLMule Desktop now supports adding custom models to enhance your AI experience:
+
+### Using Local Model Services
+
+1. **Ollama**: Add custom models using `ollama pull [model]` command
+2. **LM Studio**: Import custom GGUF models through the LM Studio interface
+3. **EXO**: Configure custom models in the EXO settings
+4. **vLLM**: Deploy custom models following vLLM documentation
+
+### Custom Model Configuration
+
+Custom models will be automatically detected when you start the supported services. The model selector will display all available models with appropriate indicators for local models.
+
+Benefits of custom models:
+- Use specialized models for specific tasks
+- Access the latest open-source models
+- Share your custom models with the network
+- Maintain complete privacy with local inference
+
+## 🔄 What's New in This Version
+
+- **Enhanced UI/UX**: Modernized interface with improved visual hierarchy and feedback
+- **Improved Code Blocks**: Cleaner code display with better syntax highlighting
+- **Search Enhancements**: Find models by name or username
+- **Better Error Handling**: Clear error messages and automatic recovery
+- **Simplified Model Tiers**: More intuitive quality indicators for different model capabilities
+- **Performance Improvements**: Faster model loading and response times
 
 ## 🤝 Contributing
 

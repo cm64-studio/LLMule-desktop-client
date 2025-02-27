@@ -304,9 +304,9 @@ export function ChatProvider({ children }) {
       // Re-throw the error for the UI to handle
       throw error;
     } finally {
-      if (!requestError) {
-        setIsLoading(false);
-      }
+      // Always set isLoading to false, regardless of whether there was an error
+      setIsLoading(false);
+      setCurrentRequestId(null);
       
       // Save conversations to local storage
       saveConversations();

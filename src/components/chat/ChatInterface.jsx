@@ -92,6 +92,11 @@ export default function ChatInterface() {
       if (!error.message?.includes('Request cancelled by user')) {
         toast.error(error.message || 'Failed to send message');
       }
+      
+      // Ensure we reset the loading state when an error occurs
+      if (isLoading) {
+        cancelCurrentRequest();
+      }
     }
   };
 

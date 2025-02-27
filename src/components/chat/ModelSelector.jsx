@@ -184,11 +184,17 @@ export default function ModelSelector({ selectedModelId, onModelChange, disabled
 
   const filteredModels = allModels.filter(model => {
     const searchTerm = searchQuery.toLowerCase();
+    
+    // Get display name for search
     const displayName = (model.type === 'local' 
       ? (model.name || model.id || '') 
       : (model.displayName || model.id?.split('@')[0] || 'Network Model')).toLowerCase();
     
-    return displayName.includes(searchTerm);
+    // Get owner/username for search
+    const owner = model.provider?.user_id?.toLowerCase() || '';
+    
+    // Search in both model name and owner/username
+    return displayName.includes(searchTerm) || owner.includes(searchTerm);
   });
 
   const favoriteModels = filteredModels.filter(m => favorites.includes(m.id || m.name));
@@ -287,7 +293,7 @@ export default function ModelSelector({ selectedModelId, onModelChange, disabled
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search models..."
+                placeholder="Search by model name or username..."
                 className="w-full bg-gray-700 text-white placeholder-gray-400 rounded-md pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
