@@ -216,12 +216,6 @@ export default function ChatSidebar() {
         )}
       </div>
       
-      {/* Footer with info */}
-      <div className="p-3 border-t border-gray-700 bg-gray-800/70">
-        <div className="text-xs text-gray-500 text-center">
-          <p>LLMule Desktop v0.1.7</p>
-        </div>
-      </div>
     </div>
   );
 } 

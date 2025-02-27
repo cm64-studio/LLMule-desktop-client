@@ -54,6 +54,7 @@ export default function MainLayout({ children }) {
   const [buttonPosition, setButtonPosition] = useState({ top: 0, left: 0, width: 0 })
   const menuButtonRef = React.useRef(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [appVersion, setAppVersion] = useState('')
 
   // Update button position for the dropdown
   const updateButtonPosition = () => {
@@ -74,6 +75,16 @@ export default function MainLayout({ children }) {
     const handleResize = () => {
       updateButtonPosition()
     }
+
+    const getVersion = async () => {
+      try {
+        const version = await window.electron.app.getVersion()
+        setAppVersion(version)
+      } catch (error) {
+        console.error('Failed to get app version:', error)
+      }
+    }
+    getVersion()
     
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
@@ -108,7 +119,7 @@ export default function MainLayout({ children }) {
         >
           <Bars3Icon className="w-5 h-5 text-gray-400" />
         </button>
-        <h1 className="text-xl font-semibold">⚡︎ LLMule</h1>
+        <h1 className="text-xl font-semibold">⚡︎ LLMule <small className="text-gray-400 text-xs">v{appVersion}</small></h1>
       </div>
 
       <div className="flex items-center gap-3">

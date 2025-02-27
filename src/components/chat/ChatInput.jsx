@@ -74,7 +74,7 @@ export default function ChatInput({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-gray-800 p-2">
+    <form onSubmit={handleSubmit} className="bg-gray-800 p-4">
       <div className="max-w-3xl mx-auto">
         <div className={`flex items-end gap-2 bg-gray-700 rounded-xl p-1.5 ${hasFocus ? 'ring-2 ring-blue-500/50' : ''} ${insufficientBalance ? 'border border-red-500/50' : ''} transition-all duration-200`}>
           <div className="flex-1 min-w-0">
@@ -137,7 +137,7 @@ export default function ChatInput({
               </span>
             )}
           </div>
-          <div className="flex items-center justify-center gap-1 text-xs">
+          <div className="flex items-center justify-center gap-1 pt-2 text-xs">
             <ShieldCheckIcon className="w-3.5 h-3.5" />
             <span className={`${isLocalModel ? 'text-green-400' : 'text-blue-400'}`}>
               {isLocalModel 

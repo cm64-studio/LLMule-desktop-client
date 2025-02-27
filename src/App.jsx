@@ -102,7 +102,7 @@ function App() {
             </header>
 
             {/* Main Content */}
-            <main className="flex-1 pt-[69px]">
+            <main className="flex-1 pt-[62px]">
               {activeView === 'chat' ? (
                 <ChatView />
               ) : (

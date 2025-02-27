@@ -7,7 +7,7 @@ export default function ChatView() {
   const { isSidebarOpen } = useUI();
 
   return (
-    <div className="flex-1 flex h-[calc(100vh-120px)]">
+    <div className="flex-1 flex h-[calc(100vh-115px)]">
       {isSidebarOpen && <ChatSidebar />}
       <div className="flex-1 flex flex-col bg-gray-900">
         <ChatInterface />

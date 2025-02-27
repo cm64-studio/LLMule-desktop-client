@@ -4,19 +4,6 @@ import { ArrowUpIcon, ArrowDownIcon, ShareIcon } from '@heroicons/react/24/solid
 
 export default function NetworkStats() {
   const { balance, tokenStats = { tokensPerMinute: 0, tokensPerSecond: 0 }, isConnected } = useNetwork()
-  const [appVersion, setAppVersion] = useState('')
-
-  useEffect(() => {
-    const getVersion = async () => {
-      try {
-        const version = await window.electron.app.getVersion()
-        setAppVersion(version)
-      } catch (error) {
-        console.error('Failed to get app version:', error)
-      }
-    }
-    getVersion()
-  }, [])
 
   return (
     <div className="bg-gray-800/80 backdrop-blur-sm border-t border-gray-700 shadow-lg">
@@ -27,7 +14,7 @@ export default function NetworkStats() {
               <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${
                 isConnected 
                   ? 'bg-green-500/10 border border-green-500/30' 
-                  : 'bg-gray-700/50 border border-gray-700'
+                  : 'bg-gray-800/50 border border-gray-800'
               }`}>
                 <ShareIcon className={`w-3.5 h-3.5 ${isConnected ? 'text-green-500' : 'text-gray-400'}`} />
                 <span className={`text-xs font-medium ${isConnected ? 'text-green-400' : 'text-gray-400'}`}>
@@ -36,7 +23,7 @@ export default function NetworkStats() {
               </div>
             </div>
             
-            {isConnected ? (
+            {isConnected && (
               <>
                 <div className="flex items-center gap-2">
                   <ArrowUpIcon className="w-4 h-4 text-green-500" />
@@ -53,21 +40,16 @@ export default function NetworkStats() {
                   </div>
                 )}
               </>
-            ) : (
-              <span className="text-gray-400 text-sm">Network models still available with MULE tokens</span>
             )}
           </div>
           
           <div className="flex items-center gap-4">
-            <div className="text-sm px-3 py-1 bg-blue-500/10 border border-blue-500/30 rounded-md">
+            
+            <div className="text-sm px-3 py-1 bg-gray-700/50 border border-gray-700/30 rounded-md">
               <span className="text-gray-300">Balance: </span>
               <span className="text-white font-mono font-medium">{Number(balance).toFixed(6)} MULE(s)</span>
             </div>
-            {appVersion && (
-              <div className="text-xs text-gray-500">
-                v{appVersion}
-              </div>
-            )}
+            
           </div>
         </div>
       </div>
