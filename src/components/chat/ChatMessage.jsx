@@ -3,7 +3,15 @@ import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import remarkGfm from 'remark-gfm';
-import { PencilIcon, TrashIcon, ClipboardIcon, CheckIcon, ArrowPathIcon, ArrowsPointingOutIcon } from '@heroicons/react/24/outline';
+import { 
+  PencilIcon, 
+  TrashIcon, 
+  ClipboardIcon, 
+  CheckIcon, 
+  ArrowPathIcon, 
+  ArrowUturnRightIcon,
+  XMarkIcon
+} from '@heroicons/react/24/outline';
 import { useChat } from '../../contexts/ChatContext';
 import { toast } from 'react-hot-toast';
 
@@ -16,6 +24,7 @@ export default function ChatMessage({ message, onDelete, onEdit, onRegenerate, i
   const isLastMessage = messageIndex === totalMessages - 1;
   const isLastUserMessage = message.role === 'user' && isLastMessage;
   const isErrorMessage = message.isError === true;
+  const isUserMessage = message.role === 'user';
 
   const handleFork = async () => {
     try {
@@ -80,11 +89,29 @@ export default function ChatMessage({ message, onDelete, onEdit, onRegenerate, i
   };
 
   return (
-    <div className={`w-full ${message.role === 'assistant' ? 'bg-gray-800/50' : ''} ${isEditing ? 'bg-blue-900/10 border-l-2 border-blue-500' : ''} ${isErrorMessage ? 'bg-red-900/10 border-l-2 border-red-500' : ''}`}>
+    <div 
+      className={`w-full transition-colors duration-200 ${
+        isUserMessage 
+          ? 'bg-gray-800/30' 
+          : isErrorMessage 
+            ? 'bg-red-900/10 border-l-2 border-red-500' 
+            : 'bg-gray-800/50'
+      } ${isEditing ? 'bg-blue-900/10 border-l-2 border-blue-500' : ''}`}
+    >
       <div className="container max-w-4xl mx-auto px-4 py-6">
         <div className="flex gap-6">
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isErrorMessage ? 'bg-red-800' : 'bg-gray-700'}`}>
-            {message.role === 'assistant' ? (isErrorMessage ? '⚠️' : '🤖') : '👤'}
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+            isUserMessage 
+              ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white' 
+              : isErrorMessage 
+                ? 'bg-red-800' 
+                : 'bg-gradient-to-br from-purple-500 to-blue-600'
+          }`}>
+            {isUserMessage ? (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                <path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clipRule="evenodd" />
+              </svg>
+            ) : isErrorMessage ? '⚠️' : '🤖'}
           </div>
           <div className="flex-1 min-w-0 overflow-hidden">
             <div className="flex items-start justify-between gap-4">
@@ -144,6 +171,19 @@ export default function ChatMessage({ message, onDelete, onEdit, onRegenerate, i
                               </button>
                             </div>
                             <div className="overflow-x-auto bg-gray-900 rounded-lg">
+                              <div className="flex items-center px-4 py-1 bg-gray-800 border-b border-gray-700 text-xs text-gray-400">
+                                <span className="flex-1">{match[1]}</span>
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(String(children));
+                                    toast.success('Code copied to clipboard');
+                                  }}
+                                  className="p-1 hover:bg-gray-700 rounded"
+                                  title="Copy code"
+                                >
+                                  <ClipboardIcon className="w-3 h-3" />
+                                </button>
+                              </div>
                               <SyntaxHighlighter
                                 style={oneDark}
                                 language={match[1]}
@@ -151,7 +191,7 @@ export default function ChatMessage({ message, onDelete, onEdit, onRegenerate, i
                                 {...props}
                                 customStyle={{
                                   margin: 0,
-                                  borderRadius: '0.5rem',
+                                  borderRadius: '0 0 0.5rem 0.5rem',
                                   padding: '1rem',
                                   background: 'transparent'
                                 }}
@@ -172,15 +212,15 @@ export default function ChatMessage({ message, onDelete, onEdit, onRegenerate, i
                   </ReactMarkdown>
                 )}
               </div>
-              <div className="flex items-center gap-1 shrink-0">
+              <div className="flex items-center gap-2 shrink-0">
                 {!isLoading && !isEditing && !isErrorMessage && (
                   <>
-                    {message.role === 'user' ? (
+                    {isUserMessage ? (
                       <>
                         {isLastUserMessage && (
                           <button
                             onClick={handleResend}
-                            className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-gray-700"
+                            className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-gray-700 bg-gray-800/70"
                             title="Resend message"
                           >
                             <ArrowPathIcon className="w-4 h-4" />
@@ -190,7 +230,7 @@ export default function ChatMessage({ message, onDelete, onEdit, onRegenerate, i
                           <>
                             <button
                               onClick={handleSave}
-                              className="p-1.5 text-green-500 hover:text-green-400 rounded-lg hover:bg-gray-700"
+                              className="p-1.5 text-green-500 hover:text-green-400 rounded-lg hover:bg-gray-700 bg-gray-800/70"
                               title="Save changes (Cmd/Ctrl + Enter)"
                             >
                               <CheckIcon className="w-4 h-4" />
@@ -200,26 +240,35 @@ export default function ChatMessage({ message, onDelete, onEdit, onRegenerate, i
                                 setIsEditing(false);
                                 setEditedContent(message.content);
                               }}
-                              className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-gray-700"
+                              className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-gray-700 bg-gray-800/70"
                               title="Cancel (Esc)"
                             >
-                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                              </svg>
+                              <XMarkIcon className="w-4 h-4" />
                             </button>
                           </>
                         ) : (
                           <button
                             onClick={handleEdit}
-                            className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-gray-700"
+                            className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-gray-700 bg-gray-800/70"
                             title="Edit message"
                           >
                             <PencilIcon className="w-4 h-4" />
                           </button>
                         )}
                         <button
+                          onClick={handleCopy}
+                          className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-gray-700 bg-gray-800/70"
+                          title="Copy to clipboard"
+                        >
+                          {isCopied ? (
+                            <CheckIcon className="w-4 h-4 text-green-500" />
+                          ) : (
+                            <ClipboardIcon className="w-4 h-4" />
+                          )}
+                        </button>
+                        <button
                           onClick={() => onDelete()}
-                          className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-gray-700"
+                          className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-gray-700 bg-gray-800/70"
                           title="Delete"
                         >
                           <TrashIcon className="w-4 h-4" />
@@ -228,45 +277,45 @@ export default function ChatMessage({ message, onDelete, onEdit, onRegenerate, i
                     ) : (
                       <>
                         <button
+                          onClick={handleCopy}
+                          className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-gray-700 bg-gray-800/70"
+                          title="Copy to clipboard"
+                        >
+                          {isCopied ? (
+                            <CheckIcon className="w-4 h-4 text-green-500" />
+                          ) : (
+                            <ClipboardIcon className="w-4 h-4" />
+                          )}
+                        </button>
+                        <button
                           onClick={() => onRegenerate(messageIndex)}
-                          className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-gray-700"
+                          className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-gray-700 bg-gray-800/70"
                           title="Regenerate response"
                         >
                           <ArrowPathIcon className="w-4 h-4" />
                         </button>
                         <button
                           onClick={handleFork}
-                          className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-gray-700"
+                          className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-gray-700 bg-gray-800/70"
                           title="Fork conversation from here"
                         >
-                          <ArrowsPointingOutIcon className="w-4 h-4" />
+                          <ArrowUturnRightIcon className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => onDelete()}
-                          className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-gray-700"
+                          className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-gray-700 bg-gray-800/70"
                           title="Delete message"
                         >
                           <TrashIcon className="w-4 h-4" />
                         </button>
                       </>
                     )}
-                    <button
-                      onClick={handleCopy}
-                      className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-gray-700"
-                      title="Copy to clipboard"
-                    >
-                      {isCopied ? (
-                        <CheckIcon className="w-4 h-4 text-green-500" />
-                      ) : (
-                        <ClipboardIcon className="w-4 h-4" />
-                      )}
-                    </button>
                   </>
                 )}
                 {!isLoading && !isEditing && isErrorMessage && message.role === 'assistant' && (
                   <button
                     onClick={() => onRegenerate(messageIndex - 1)}
-                    className="p-1.5 text-red-400 hover:text-red-300 rounded-lg hover:bg-gray-700"
+                    className="p-1.5 text-red-400 hover:text-red-300 rounded-lg hover:bg-gray-700 bg-gray-800/70"
                     title="Try again"
                   >
                     <ArrowPathIcon className="w-4 h-4" />

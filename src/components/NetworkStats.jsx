@@ -23,7 +23,6 @@ export default function NetworkStats() {
       <div className="p-3">
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-6">
-            <span className="text-xs text-gray-500 font-mono">v{appVersion}</span>
             {isConnected && (
               <>
                 <div className="flex items-center gap-2">

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { PaperAirplaneIcon, StopIcon } from '@heroicons/react/24/solid';
-import { ExclamationTriangleIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
+import { ExclamationTriangleIcon, ShieldCheckIcon, CommandLineIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 
 export default function ChatInput({ 
@@ -66,10 +66,17 @@ export default function ChatInput({
     }
   };
 
+  // Dynamic placeholder based on model type
+  const getPlaceholder = () => {
+    if (insufficientBalance) return "Insufficient balance. Please share models or contact us.";
+    if (isLocalModel) return "Message your local AI model...";
+    return "Message the network model...";
+  };
+
   return (
-    <form onSubmit={handleSubmit} className="bg-gray-800 p-4">
+    <form onSubmit={handleSubmit} className="bg-gray-800 p-2">
       <div className="max-w-3xl mx-auto">
-        <div className={`flex items-end gap-2 bg-gray-700 rounded-xl p-2 ${insufficientBalance ? 'border border-red-500/50' : ''}`}>
+        <div className={`flex items-end gap-2 bg-gray-700 rounded-xl p-1.5 ${hasFocus ? 'ring-2 ring-blue-500/50' : ''} ${insufficientBalance ? 'border border-red-500/50' : ''} transition-all duration-200`}>
           <div className="flex-1 min-w-0">
             <textarea
               ref={textareaRef}
@@ -78,10 +85,10 @@ export default function ChatInput({
               onKeyDown={handleKeyDown}
               onFocus={() => setHasFocus(true)}
               onBlur={() => setHasFocus(false)}
-              placeholder={insufficientBalance ? "Insufficient balance. Please share models or contact us." : placeholder}
+              placeholder={getPlaceholder()}
               rows={1}
               disabled={disabled || isLoading}
-              className={`w-full bg-transparent text-white px-3 py-2 focus:outline-none resize-none transition-colors ${
+              className={`w-full bg-transparent text-white px-2 py-1.5 focus:outline-none resize-none transition-colors ${
                 (disabled || isLoading) ? 'opacity-50 cursor-not-allowed' : ''
               }`}
               style={{
@@ -97,7 +104,7 @@ export default function ChatInput({
                 e.preventDefault();
                 onCancel();
               }}
-              className="flex items-center justify-center rounded-lg p-2 h-[36px] w-[36px] flex-shrink-0 transition-colors bg-gray-600 hover:bg-gray-500 text-white"
+              className="flex items-center justify-center rounded-lg p-2 h-[36px] w-[36px] flex-shrink-0 transition-colors bg-red-600 hover:bg-red-700 text-white"
               title="Stop generating"
             >
               <StopIcon className="w-5 h-5" />
@@ -106,12 +113,12 @@ export default function ChatInput({
             <button
               type="submit"
               disabled={!message.trim() || disabled}
-              className={`flex items-center justify-center rounded-lg p-2 h-[36px] w-[36px] flex-shrink-0 transition-colors ${
+              className={`flex items-center justify-center rounded-lg p-2 h-[36px] w-[36px] flex-shrink-0 transition-all ${
                 message.trim() && !disabled
                   ? insufficientBalance 
                     ? 'bg-red-600 hover:bg-red-700 text-white'
                     : 'bg-blue-600 hover:bg-blue-700 text-white'
-                  : 'text-gray-400'
+                  : 'bg-gray-600 text-gray-400'
               } disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               <PaperAirplaneIcon className="w-5 h-5" />
@@ -119,8 +126,16 @@ export default function ChatInput({
           )}
         </div>
         <div className="mt-2 space-y-1">
-          <div className="text-xs text-gray-400 text-center">
-            {isLoading ? 'Press Stop to cancel generation' : 'Press Enter to send, Shift + Enter for new line'}
+          <div className="text-xs text-gray-400 text-center flex items-center justify-center gap-2">
+            {isLoading ? (
+              <span className="flex items-center gap-1">
+                <StopIcon className="w-3.5 h-3.5" /> Press <kbd className="px-1.5 py-0.5 bg-gray-700 rounded text-xs">Esc</kbd> to cancel generation
+              </span>
+            ) : (
+              <span className="flex items-center gap-1">
+                Press <kbd className="px-1.5 py-0.5 bg-gray-700 rounded text-xs">Enter</kbd> to send, <kbd className="px-1.5 py-0.5 bg-gray-700 rounded text-xs">Shift</kbd> + <kbd className="px-1.5 py-0.5 bg-gray-700 rounded text-xs">Enter</kbd> for new line
+              </span>
+            )}
           </div>
           <div className="flex items-center justify-center gap-1 text-xs">
             <ShieldCheckIcon className="w-3.5 h-3.5" />

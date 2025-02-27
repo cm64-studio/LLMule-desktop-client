@@ -1,163 +1,111 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronUpDownIcon, CheckIcon, StarIcon as StarIconSolid, ServerIcon, MagnifyingGlassIcon, ArrowPathIcon } from '@heroicons/react/24/solid';
-import { StarIcon } from '@heroicons/react/24/outline';
+import { ChevronUpDownIcon, CheckIcon, StarIcon as StarIconSolid, MagnifyingGlassIcon, ArrowPathIcon } from '@heroicons/react/24/solid';
+import { StarIcon, ComputerDesktopIcon, GlobeAltIcon } from '@heroicons/react/24/outline';
 import { useNetwork } from '../../contexts/NetworkContext';
 import { toast } from 'react-hot-toast';
 
-// Move tierInfo to the top level
+// Simplified tier information with more intuitive labels
 const tierInfo = {
-  'xs': { label: 'XS', description: 'Minimal' },
-  'small': { label: 'Small', description: 'Basic Tasks' },
-  'medium': { label: 'Medium', description: 'Balanced' },
-  'large': { label: 'Large', description: 'Powerful' },
-  'xl': { label: 'XL', description: 'Advanced' },
-  'xxl': { label: 'XXL', description: 'Ultimate' }
+  'xs': { label: 'Basic', description: 'Simple tasks', color: 'bg-gray-400' },
+  'small': { label: 'Standard', description: 'Everyday use', color: 'bg-green-500' },
+  'medium': { label: 'Enhanced', description: 'Better quality', color: 'bg-blue-500' },
+  'large': { label: 'Advanced', description: 'Complex tasks', color: 'bg-purple-500' },
+  'xl': { label: 'Professional', description: 'High performance', color: 'bg-pink-500' },
+  'xxl': { label: 'Expert', description: 'Best quality', color: 'bg-red-500' }
 };
 
-const ModelTierBars = ({ tier }) => {
-  const tiers = {
-    'xs': 1,
-    'small': 2,
-    'medium': 3,
-    'large': 4,
-    'xl': 5,
-    'xxl': 6
-  };
-
-  const bars = tiers[tier] || 3;
+// Simplified tier indicator
+const ModelTierIndicator = ({ tier }) => {
+  const tierColor = tierInfo[tier]?.color || 'bg-blue-500';
   
   return (
-    <div className="flex gap-0.5 items-end h-4">
-      {[...Array(6)].map((_, i) => (
-        <div
-          key={i}
-          className={`w-1 ${i < bars ? 'bg-green-500' : 'bg-gray-600'}`}
-          style={{ height: `${(i + 1) * 16.66}%` }}
-        />
-      ))}
+    <div className="flex items-center gap-1.5">
+      <div className={`w-2.5 h-2.5 rounded-full ${tierColor}`}></div>
+      <span className="text-sm">{tierInfo[tier]?.label || 'Standard'}</span>
     </div>
   );
 };
 
+// Simplified speed indicator
 const SpeedIndicator = ({ tokensPerSecond, successRate }) => {
-  if (!tokensPerSecond || tokensPerSecond === 0) {
-    return (
-      <div className="text-gray-400 text-xs flex items-center gap-2">
-        {successRate !== undefined && (
-          <span className={getSuccessRateColor(successRate)}>⚡︎ {successRate}%</span>
-        )}
-      </div>
-    );
-  }
-
-  let speedText = '⏲ Slow';
-  let speedClass = 'text-red-400';
-  if (tokensPerSecond > 100) {
-    speedText = '⏲ Very Fast';
-    speedClass = 'text-green-400';
-  } else if (tokensPerSecond > 50) {
-    speedText = '⏲ Fast';
-    speedClass = 'text-yellow-400';
-  } else if (tokensPerSecond > 20) {
-    speedText = '⏲ Normal';
-    speedClass = 'text-yellow-600';
+  // If no data, don't show anything
+  if (!tokensPerSecond && !successRate) return null;
+  
+  let speedLabel = 'Normal';
+  let speedColor = 'text-yellow-400';
+  let speedIcon = '⏱️';
+  
+  if (tokensPerSecond > 80) {
+    speedLabel = 'Fast';
+    speedColor = 'text-green-400';
+    speedIcon = '⚡';
+  } else if (tokensPerSecond < 20) {
+    speedLabel = 'Slow';
+    speedColor = 'text-red-400';
+    speedIcon = '🐢';
   }
 
   return (
-    <div className="flex items-center gap-2 text-xs">
-      <span className={speedClass}>{speedText}</span>
-      {successRate !== undefined && (
-        <span className={getSuccessRateColor(successRate)}>⚡︎ {successRate}%</span>
-      )}
+    <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-gray-700/50 text-xs">
+      <span className={speedColor}>{speedIcon} {speedLabel}</span>
     </div>
   );
 };
 
-const getSuccessRateColor = (successRate) => {
-  if (successRate >= 90) return 'text-green-400';
-  if (successRate >= 80) return 'text-yellow-400';
-  if (successRate >= 70) return 'text-yellow-600';
-  return 'text-red-400';
-};
-
-const ContextLengthIndicator = ({ contextLength }) => {
-  if (!contextLength) return null;
-  
-  const contextInK = Math.round(contextLength / 1024);
-  let contextText = '';
-  let contextClass = 'text-yellow-600';
-  
-  if (contextInK >= 128) {
-    contextText = 'Very long context';
-    contextClass = 'text-green-400';
-  } else if (contextInK >= 32) {
-    contextText = 'Long context';
-    contextClass = 'text-green-400';
-  } else if (contextInK >= 16) {
-    contextText = 'Medium context';
-    contextClass = 'text-yellow-400';
-  }
-
-  return (
-    <span className={`text-xs ${contextClass}`}>
-      {contextText}
-    </span>
-  );
-};
-
+// Simplified model item
 const ModelItem = ({ model, isSelected, onSelect, isFavorite, onToggleFavorite }) => {
   const isLocal = model.type === 'local';
-  const tokensPerSecond = model.provider?.avg_tokens_per_second;
-  const successRate = model.provider?.success_rate;
   
-  // For network models, use displayName or fall back to root or id
-  // This handles cases where root might be an object instead of a string
+  // Simplified display name logic
   const displayName = isLocal 
     ? (model.name || model.id) 
-    : (model.displayName || 
-       (typeof model.root === 'string' ? model.root : 
-        (model.root && model.root.name ? model.root.name : 
-         (model.id && !model.id.includes('[object Object]') ? model.id.split('@')[0] : 'Unknown Model'))));
+    : (model.displayName || model.id?.split('@')[0] || 'Network Model');
   
-  // Get owner information, avoiding [object Object] in the display
-  const owner = isLocal 
-    ? null 
-    : (model.provider?.user_id || 
-       (model.owned_by && typeof model.owned_by === 'string' ? model.owned_by : null));
+  // Simplified owner display
+  const owner = !isLocal && model.provider?.user_id 
+    ? model.provider.user_id 
+    : null;
 
   return (
     <div
-      className={`flex items-center justify-between p-3 hover:bg-gray-700/50 cursor-pointer ${
-        isSelected ? 'bg-gray-700/50' : ''
+      className={`flex items-center justify-between p-3 hover:bg-gray-700 cursor-pointer rounded-lg transition-colors ${
+        isSelected ? 'bg-gray-700 ring-1 ring-blue-500/50' : ''
       }`}
       onClick={() => onSelect(model)}
     >
       <div className="flex items-center gap-3 min-w-0">
         <div className="flex-shrink-0">
           {isLocal ? (
-            <ServerIcon className="w-5 h-5 text-blue-400" />
+            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center">
+              <ComputerDesktopIcon className="w-4 h-4 text-white" />
+            </div>
           ) : (
-            <ModelTierBars tier={model.tier} />
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-700 to-gray-800 flex items-center justify-center">
+              <GlobeAltIcon className="w-4 h-4 text-white" />
+            </div>
           )}
         </div>
         
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="font-medium truncate">{displayName}</span>
-            {owner && (
-              <span className="text-xs text-gray-400">by {owner}</span>
+            {isLocal && (
+              <span className="px-1.5 py-0.5 text-xs bg-blue-600/20 text-blue-400 rounded-full">Local</span>
             )}
           </div>
           
-          <div className="flex items-center gap-3 text-sm">
-            {!isLocal && (
-              <>
-                <SpeedIndicator 
-                  tokensPerSecond={tokensPerSecond} 
-                  successRate={successRate}
-                />
-                {/* <ContextLengthIndicator contextLength={model.context_length} /> */}
-              </>
+          <div className="flex items-center gap-2 mt-1">
+            {!isLocal && model.tier && (
+              <ModelTierIndicator tier={model.tier} />
+            )}
+            {owner && (
+              <span className="text-xs text-gray-400">by {owner}</span>
+            )}
+            {!isLocal && model.provider?.avg_tokens_per_second && (
+              <SpeedIndicator 
+                tokensPerSecond={model.provider.avg_tokens_per_second} 
+                successRate={model.provider.success_rate}
+              />
             )}
           </div>
         </div>
@@ -184,31 +132,7 @@ const ModelItem = ({ model, isSelected, onSelect, isFavorite, onToggleFavorite }
   );
 };
 
-// const QuickTierSelect = ({ onSelect, availableTiers }) => {
-//   return (
-//     <div className="border-b border-gray-700">
-//       <div className="px-3 py-2 text-xs font-medium text-gray-400 bg-gray-800/50">
-//         Quick Select by Tier
-//       </div>
-//       <div className="p-1.5 flex flex-wrap gap-1.5">
-//         {availableTiers.map(tier => (
-//           <button
-//             key={tier}
-//             onClick={() => onSelect(tier)}
-//             className="flex items-center gap-2 p-1.5 rounded bg-gray-700/50 hover:bg-gray-700 transition-colors flex-1 min-w-[100px] max-w-[150px]"
-//           >
-//             <ModelTierBars tier={tier} />
-//             <div className="text-left">
-//               <div className="text-sm font-medium">{tierInfo[tier]?.label || tier}</div>
-//               <div className="text-xs text-gray-400">{tierInfo[tier]?.description}</div>
-//             </div>
-//           </button>
-//         ))}
-//       </div>
-//     </div>
-//   );
-// };
-
+// Main ModelSelector component
 export default function ModelSelector({ selectedModelId, onModelChange, disabled }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -252,7 +176,7 @@ export default function ModelSelector({ selectedModelId, onModelChange, disabled
   const allModels = [
     ...localModels.map(m => ({ 
       ...m, 
-      id: m.name || m.id, // Ensure we have an id from either name or id
+      id: m.name || m.id,
       type: 'local' 
     })),
     ...networkModels
@@ -260,24 +184,11 @@ export default function ModelSelector({ selectedModelId, onModelChange, disabled
 
   const filteredModels = allModels.filter(model => {
     const searchTerm = searchQuery.toLowerCase();
+    const displayName = (model.type === 'local' 
+      ? (model.name || model.id || '') 
+      : (model.displayName || model.id?.split('@')[0] || 'Network Model')).toLowerCase();
     
-    // Get the display name based on model type
-    const displayName = model.type === 'local' 
-      ? (model.name || model.id || '').toLowerCase()
-      : (model.displayName || 
-         (typeof model.root === 'string' ? model.root : 
-          (model.root && model.root.name ? model.root.name : 
-           (model.id && !model.id.includes('[object Object]') 
-            ? model.id.split('@')[0] 
-            : 'Unknown Model')))).toLowerCase();
-    
-    // Get owner information, avoiding [object Object] in the display
-    const modelOwner = model.type === 'local'
-      ? ''
-      : (model.provider?.user_id || 
-         (model.owned_by && typeof model.owned_by === 'string' ? model.owned_by : '')).toLowerCase();
-    
-    return displayName.includes(searchTerm) || modelOwner.includes(searchTerm);
+    return displayName.includes(searchTerm);
   });
 
   const favoriteModels = filteredModels.filter(m => favorites.includes(m.id || m.name));
@@ -286,30 +197,18 @@ export default function ModelSelector({ selectedModelId, onModelChange, disabled
 
   // Find selected model
   const selectedModel = allModels.find(m => {
-    // For local models, match by name or id
     if (m.type === 'local') {
       return (m.id === selectedModelId) || (m.name === selectedModelId);
     }
-    // For network models, match by id
     return m.id === selectedModelId;
   });
 
-  // Group network models by tier
-  const networkModelsByTier = networkModelsList.reduce((acc, model) => {
-    if (!acc[model.tier]) {
-      acc[model.tier] = [];
-    }
-    acc[model.tier].push(model);
-    return acc;
-  }, {});
-
+  // Simplified tier selection
   const handleTierSelect = (tier) => {
-    // When selecting a tier, we pass the tier directly as the model ID
-    // The API will handle selecting an appropriate model of that tier
     onModelChange(tier);
     setIsOpen(false);
     setSearchQuery('');
-    toast.success(`Selected ${tier} tier model`);
+    toast.success(`Selected ${tierInfo[tier]?.label || tier} model`);
   };
 
   // Get unique available tiers from network models
@@ -332,33 +231,36 @@ export default function ModelSelector({ selectedModelId, onModelChange, disabled
             {selectedModel ? (
               <>
                 {selectedModel.type === 'local' ? (
-                  <ServerIcon className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                  <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center">
+                    <ComputerDesktopIcon className="w-3 h-3 text-white" />
+                  </div>
                 ) : (
-                  <ModelTierBars tier={selectedModel.tier} />
+                  <div className="w-5 h-5 rounded-full bg-gradient-to-br from-gray-700 to-gray-800 flex items-center justify-center">
+                    <GlobeAltIcon className="w-3 h-3 text-white" />
+                  </div>
                 )}
                 <span className="truncate flex-1 text-left">
                   {selectedModel.type === 'local' 
                     ? (selectedModel.name || selectedModel.id)
-                    : (selectedModel.displayName || 
-                       (typeof selectedModel.root === 'string' ? selectedModel.root : 
-                        (selectedModel.root && selectedModel.root.name ? selectedModel.root.name : 
-                         (selectedModel.id && !selectedModel.id.includes('[object Object]') 
-                          ? selectedModel.id.split('@')[0] 
-                          : 'Unknown Model')))
-                      )
+                    : (selectedModel.displayName || selectedModel.id?.split('@')[0] || 'Network Model')
                   }
                 </span>
                 {selectedModel.type === 'local' && (
-                  <span className="flex-shrink-0 px-1.5 py-0.5 text-xs bg-gray-600/50 text-gray-300 rounded">Local</span>
+                  <span className="flex-shrink-0 px-1.5 py-0.5 text-xs bg-blue-600/20 text-blue-400 rounded-full">Local</span>
                 )}
               </>
-            ) : selectedModelId && ['xs', 'small', 'medium', 'large', 'xl', 'xxl'].includes(selectedModelId) ? (
+            ) : selectedModelId && tierInfo[selectedModelId] ? (
               <>
-                <ModelTierBars tier={selectedModelId} />
-                <span className="truncate flex-1 text-left capitalize">{selectedModelId} Tier</span>
+                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-gray-700 to-gray-800 flex items-center justify-center">
+                  <div className={`w-2.5 h-2.5 rounded-full ${tierInfo[selectedModelId].color}`}></div>
+                </div>
+                <span className="truncate flex-1 text-left">{tierInfo[selectedModelId].label} Model</span>
               </>
             ) : (
-              <span className="text-gray-400">Select a model</span>
+              <div className="flex items-center gap-2 text-gray-400">
+                <MagnifyingGlassIcon className="w-4 h-4" />
+                <span>Select a model to start chatting</span>
+              </div>
             )}
           </div>
           <ChevronUpDownIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
@@ -391,70 +293,77 @@ export default function ModelSelector({ selectedModelId, onModelChange, disabled
             </div>
           </div>
 
-          <div className="max-h-[60vh] overflow-y-auto">
+          <div className="max-h-[60vh] overflow-y-auto p-2 space-y-2">
             {/* Favorites Section */}
             {favoriteModels.length > 0 && (
-              <div>
-                <div className="px-3 py-2 text-xs font-medium text-gray-400 bg-gray-800/50">
+              <div className="bg-gray-800/70 rounded-lg overflow-hidden">
+                <div className="px-3 py-2 text-xs font-medium text-gray-300 bg-gray-700/50 border-l-2 border-yellow-500">
                   Favorites
                 </div>
-                {favoriteModels.map((model) => (
-                  <ModelItem
-                    key={model.id}
-                    model={model}
-                    isSelected={model.id === selectedModelId || model.name === selectedModelId}
-                    onSelect={(model) => {
-                      onModelChange(model.name || model.id);
-                      setIsOpen(false);
-                      setSearchQuery('');
-                    }}
-                    isFavorite={favorites.includes(model.id || model.name)}
-                    onToggleFavorite={toggleFavorite}
-                  />
-                ))}
+                <div className="p-1 space-y-1">
+                  {favoriteModels.map((model) => (
+                    <ModelItem
+                      key={model.id}
+                      model={model}
+                      isSelected={model.id === selectedModelId || model.name === selectedModelId}
+                      onSelect={(model) => {
+                        onModelChange(model.name || model.id);
+                        setIsOpen(false);
+                        setSearchQuery('');
+                      }}
+                      isFavorite={favorites.includes(model.id || model.name)}
+                      onToggleFavorite={toggleFavorite}
+                    />
+                  ))}
+                </div>
               </div>
             )}
 
-            {/* Local Models Section - Always First */}
+            {/* Local Models Section */}
             {localModelsList.length > 0 && (
-              <div>
-                <div className="px-3 py-2 text-xs font-medium text-gray-400 bg-gray-800/50">
-                  Local Models
+              <div className="bg-gray-800/70 rounded-lg overflow-hidden">
+                <div className="px-3 py-2 text-xs font-medium text-gray-300 bg-gray-700/50 border-l-2 border-blue-500 flex items-center gap-2">
+                  <ComputerDesktopIcon className="w-3.5 h-3.5" />
+                  Your Local Models
                 </div>
-                {localModelsList.map((model) => (
-                  <ModelItem
-                    key={model.id}
-                    model={model}
-                    isSelected={model.id === selectedModelId || model.name === selectedModelId}
-                    onSelect={(model) => {
-                      onModelChange(model.name || model.id);
-                      setIsOpen(false);
-                      setSearchQuery('');
-                    }}
-                    isFavorite={favorites.includes(model.id || model.name)}
-                    onToggleFavorite={toggleFavorite}
-                  />
-                ))}
+                <div className="p-1 space-y-1">
+                  {localModelsList.map((model) => (
+                    <ModelItem
+                      key={model.id}
+                      model={model}
+                      isSelected={model.id === selectedModelId || model.name === selectedModelId}
+                      onSelect={(model) => {
+                        onModelChange(model.name || model.id);
+                        setIsOpen(false);
+                        setSearchQuery('');
+                      }}
+                      isFavorite={favorites.includes(model.id || model.name)}
+                      onToggleFavorite={toggleFavorite}
+                    />
+                  ))}
+                </div>
               </div>
             )}
 
-            {/* Quick Tier Select - Only show if not searching */}
-            {!searchQuery && networkModelsList.length > 0 && (
-              <div>
-                <div className="px-3 py-2 text-xs font-medium text-gray-400 bg-gray-800/50">
-                  By Tier
+            {/* Quality Levels - Only show if not searching */}
+            {!searchQuery && networkModelsList.length > 0 && availableTiers.length > 0 && (
+              <div className="bg-gray-800/70 rounded-lg overflow-hidden">
+                <div className="px-3 py-2 text-xs font-medium text-gray-300 bg-gray-700/50 border-l-2 border-purple-500">
+                  Quality Levels
                 </div>
-                <div className="p-1.5 flex flex-wrap gap-1.5">
+                <div className="p-2 grid grid-cols-3 gap-2">
                   {availableTiers.map(tier => (
                     <button
                       key={tier}
                       onClick={() => handleTierSelect(tier)}
-                      className="flex items-center gap-2 p-1.5 rounded bg-gray-700/50 hover:bg-gray-700 transition-colors flex-1 min-w-[100px] max-w-[150px]"
+                      className="flex items-center gap-2 p-2 rounded-lg bg-gray-700/50 hover:bg-gray-700 transition-colors"
                     >
-                      <ModelTierBars tier={tier} />
-                      <div className="text-left">
-                        <div className="text-sm font-medium">{tierInfo[tier]?.label || tier}</div>
-                        <div className="text-xs text-gray-400">{tierInfo[tier]?.description}</div>
+                      <div className={`w-6 h-6 rounded-full ${tierInfo[tier]?.color || 'bg-blue-500'} bg-opacity-20 flex items-center justify-center flex-shrink-0`}>
+                        <div className={`w-3 h-3 rounded-full ${tierInfo[tier]?.color || 'bg-blue-500'}`}></div>
+                      </div>
+                      <div className="text-left min-w-0">
+                        <div className="text-sm font-medium truncate">{tierInfo[tier]?.label || tier}</div>
+                        <div className="text-xs text-gray-400 truncate">{tierInfo[tier]?.description}</div>
                       </div>
                     </button>
                   ))}
@@ -464,30 +373,33 @@ export default function ModelSelector({ selectedModelId, onModelChange, disabled
 
             {/* Network Models Section */}
             {networkModelsList.length > 0 && (
-              <div>
-                <div className="px-3 py-2 text-xs font-medium text-gray-400 bg-gray-800/50">
-                  Network Models
+              <div className="bg-gray-800/70 rounded-lg overflow-hidden">
+                <div className="px-3 py-2 text-xs font-medium text-gray-300 bg-gray-700/50 border-l-2 border-green-500 flex items-center gap-2">
+                  <GlobeAltIcon className="w-3.5 h-3.5" />
+                  Shared Network Models
                 </div>
-                {networkModelsList.map((model) => (
-                  <ModelItem
-                    key={model.id}
-                    model={model}
-                    isSelected={model.id === selectedModelId}
-                    onSelect={() => {
-                      onModelChange(model.id);
-                      setIsOpen(false);
-                      setSearchQuery('');
-                    }}
-                    isFavorite={favorites.includes(model.id || model.name)}
-                    onToggleFavorite={toggleFavorite}
-                  />
-                ))}
+                <div className="p-1 space-y-1">
+                  {networkModelsList.map((model) => (
+                    <ModelItem
+                      key={model.id}
+                      model={model}
+                      isSelected={model.id === selectedModelId}
+                      onSelect={() => {
+                        onModelChange(model.id);
+                        setIsOpen(false);
+                        setSearchQuery('');
+                      }}
+                      isFavorite={favorites.includes(model.id || model.name)}
+                      onToggleFavorite={toggleFavorite}
+                    />
+                  ))}
+                </div>
               </div>
             )}
 
             {/* Empty State */}
             {filteredModels.length === 0 && (
-              <div className="p-4 text-center text-gray-400">
+              <div className="p-4 text-center text-gray-400 bg-gray-800/50 rounded-lg">
                 {searchQuery ? (
                   <p className="text-sm">No models found matching "{searchQuery}"</p>
                 ) : (
