@@ -1,7 +1,7 @@
 {
   "name": "llmule-desktop",
   "private": true,
-  "version": "0.1.5",
+  "version": "0.1.7",
   "description": "LLMule Desktop - Decentralized AI Computing",
   "author": {
     "name": "Andrés Cufari",

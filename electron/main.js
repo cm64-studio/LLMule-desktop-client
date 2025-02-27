@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, powerMonitor } from 'electron'
 import path from 'path'
 import Store from 'electron-store'
 import { setupAuthHandlers } from './auth/handlers.js'
@@ -64,6 +64,22 @@ app.whenReady().then(() => {
   setupLLMHandlers()
   setupAppHandlers()
   
+  // Setup power monitor events
+  powerMonitor.on('suspend', () => {
+    console.log('System suspending...');
+    global.mainWindow?.webContents.send('system:suspend');
+  });
+
+  powerMonitor.on('resume', () => {
+    console.log('System resuming...');
+    global.mainWindow?.webContents.send('system:resume');
+  });
+
+  powerMonitor.on('unlock-screen', () => {
+    console.log('Screen unlocked...');
+    global.mainWindow?.webContents.send('system:unlock');
+  });
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })

@@ -110,9 +110,20 @@ const ModelItem = ({ model, isSelected, onSelect, isFavorite, onToggleFavorite }
   const tokensPerSecond = model.provider?.avg_tokens_per_second;
   const successRate = model.provider?.success_rate;
   
-  // For network models, use root as display name and provider user_id as owner
-  const displayName = isLocal ? (model.name || model.id) : (model.root || model.id);
-  const owner = isLocal ? null : (model.provider?.user_id || model.owned_by);
+  // For network models, use displayName or fall back to root or id
+  // This handles cases where root might be an object instead of a string
+  const displayName = isLocal 
+    ? (model.name || model.id) 
+    : (model.displayName || 
+       (typeof model.root === 'string' ? model.root : 
+        (model.root && model.root.name ? model.root.name : 
+         (model.id && !model.id.includes('[object Object]') ? model.id.split('@')[0] : 'Unknown Model'))));
+  
+  // Get owner information, avoiding [object Object] in the display
+  const owner = isLocal 
+    ? null 
+    : (model.provider?.user_id || 
+       (model.owned_by && typeof model.owned_by === 'string' ? model.owned_by : null));
 
   return (
     <div
@@ -249,10 +260,24 @@ export default function ModelSelector({ selectedModelId, onModelChange, disabled
 
   const filteredModels = allModels.filter(model => {
     const searchTerm = searchQuery.toLowerCase();
-    const modelId = (model.id || model.name || '').toLowerCase();
-    const modelOwner = (model.owned_by || '').toLowerCase();
     
-    return modelId.includes(searchTerm) || modelOwner.includes(searchTerm);
+    // Get the display name based on model type
+    const displayName = model.type === 'local' 
+      ? (model.name || model.id || '').toLowerCase()
+      : (model.displayName || 
+         (typeof model.root === 'string' ? model.root : 
+          (model.root && model.root.name ? model.root.name : 
+           (model.id && !model.id.includes('[object Object]') 
+            ? model.id.split('@')[0] 
+            : 'Unknown Model')))).toLowerCase();
+    
+    // Get owner information, avoiding [object Object] in the display
+    const modelOwner = model.type === 'local'
+      ? ''
+      : (model.provider?.user_id || 
+         (model.owned_by && typeof model.owned_by === 'string' ? model.owned_by : '')).toLowerCase();
+    
+    return displayName.includes(searchTerm) || modelOwner.includes(searchTerm);
   });
 
   const favoriteModels = filteredModels.filter(m => favorites.includes(m.id || m.name));
@@ -260,9 +285,14 @@ export default function ModelSelector({ selectedModelId, onModelChange, disabled
   const networkModelsList = filteredModels.filter(m => m.type !== 'local' && !favorites.includes(m.id || m.name));
 
   // Find selected model
-  const selectedModel = allModels.find(m => 
-    (m.id === selectedModelId) || (m.name === selectedModelId)
-  );
+  const selectedModel = allModels.find(m => {
+    // For local models, match by name or id
+    if (m.type === 'local') {
+      return (m.id === selectedModelId) || (m.name === selectedModelId);
+    }
+    // For network models, match by id
+    return m.id === selectedModelId;
+  });
 
   // Group network models by tier
   const networkModelsByTier = networkModelsList.reduce((acc, model) => {
@@ -309,7 +339,13 @@ export default function ModelSelector({ selectedModelId, onModelChange, disabled
                 <span className="truncate flex-1 text-left">
                   {selectedModel.type === 'local' 
                     ? (selectedModel.name || selectedModel.id)
-                    : (selectedModel.root || selectedModel.id)
+                    : (selectedModel.displayName || 
+                       (typeof selectedModel.root === 'string' ? selectedModel.root : 
+                        (selectedModel.root && selectedModel.root.name ? selectedModel.root.name : 
+                         (selectedModel.id && !selectedModel.id.includes('[object Object]') 
+                          ? selectedModel.id.split('@')[0] 
+                          : 'Unknown Model')))
+                      )
                   }
                 </span>
                 {selectedModel.type === 'local' && (

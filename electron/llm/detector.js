@@ -1,7 +1,58 @@
 import axios from 'axios'
 import Store from 'electron-store'
+import crypto from 'crypto'
 
 const store = new Store()
+
+// Simple encryption/decryption functions for API keys
+function encryptApiKey(apiKey) {
+  if (!apiKey) return '';
+  try {
+    // Use a machine-specific value as encryption key
+    // This makes the encrypted value only usable on this machine
+    const machineId = store.get('machineId');
+    if (!machineId) {
+      const newMachineId = crypto.randomBytes(32).toString('hex');
+      store.set('machineId', newMachineId);
+    }
+    
+    const encryptionKey = store.get('machineId');
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv('aes-256-cbc', 
+      crypto.createHash('sha256').update(encryptionKey).digest(), iv);
+    
+    let encrypted = cipher.update(apiKey, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    
+    return `${iv.toString('hex')}:${encrypted}`;
+  } catch (error) {
+    console.error('Encryption error:', error);
+    return '';
+  }
+}
+
+function decryptApiKey(encryptedApiKey) {
+  if (!encryptedApiKey) return '';
+  try {
+    const machineId = store.get('machineId');
+    if (!machineId) return '';
+    
+    const [ivHex, encrypted] = encryptedApiKey.split(':');
+    if (!ivHex || !encrypted) return '';
+    
+    const iv = Buffer.from(ivHex, 'hex');
+    const decipher = crypto.createDecipheriv('aes-256-cbc', 
+      crypto.createHash('sha256').update(machineId).digest(), iv);
+    
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    
+    return decrypted;
+  } catch (error) {
+    console.error('Decryption error:', error);
+    return '';
+  }
+}
 
 export class ModelDetector {
   constructor() {
@@ -48,7 +99,23 @@ export class ModelDetector {
       models.push(...vllmModels)
     }
 
-    console.log('Total models detected:', models);
+    // Add custom models from storage
+    console.log('Retrieving custom models...');
+    const customModels = await this.getCustomModels();
+    // Note: Custom models are already logged in getCustomModels with sanitized API keys
+    models.push(...customModels);
+
+    // Create a sanitized version for logging
+    const sanitizedModels = models.map(model => {
+      // Create a deep copy without sensitive data
+      const sanitized = { ...model };
+      if (sanitized.details && sanitized.details.apiKey) {
+        sanitized.details = { ...sanitized.details, apiKey: '********' };
+      }
+      return sanitized;
+    });
+    
+    console.log('Total models detected:', sanitizedModels);
     return models
   }
 
@@ -127,6 +194,81 @@ export class ModelDetector {
     } catch (error) {
       console.log('Failed to detect vLLM models:', error.message);
       return []
+    }
+  }
+
+  async getCustomModels() {
+    try {
+      const customModels = store.get('customModels') || [];
+      const models = customModels.map(model => ({
+        name: model.modelName,
+        id: model.externalModelId || model.modelName,
+        type: 'custom',
+        details: {
+          baseUrl: model.baseUrl,
+          modelType: model.modelType,
+          apiKey: decryptApiKey(model.apiKey),
+          useAnthropicV1: model.useAnthropicV1 || false,
+          externalModelId: model.externalModelId
+        }
+      }));
+      
+      // Create a sanitized version for logging (without API keys)
+      const sanitizedModels = models.map(model => ({
+        ...model,
+        details: {
+          ...model.details,
+          apiKey: model.details.apiKey ? '********' : null
+        }
+      }));
+      
+      console.log('Found custom models:', sanitizedModels);
+      return models;
+    } catch (error) {
+      console.log('Failed to retrieve custom models:', error.message);
+      return [];
+    }
+  }
+
+  async addCustomModel(modelConfig) {
+    try {
+      // Get existing custom models
+      const customModels = store.get('customModels') || [];
+      
+      // Encrypt the API key before storing
+      const secureModelConfig = {
+        ...modelConfig,
+        apiKey: encryptApiKey(modelConfig.apiKey)
+      };
+      
+      // Add new model
+      customModels.push(secureModelConfig);
+      
+      // Save back to store
+      store.set('customModels', customModels);
+      
+      return true;
+    } catch (error) {
+      console.error('Failed to add custom model:', error);
+      return false;
+    }
+  }
+
+  async removeCustomModel(modelName) {
+    try {
+      // Get existing custom models
+      const customModels = store.get('customModels') || [];
+      
+      // Filter out the model to remove
+      const updatedModels = customModels.filter(model => model.modelName !== modelName);
+      
+      // Save back to store
+      store.set('customModels', updatedModels);
+      
+      return true;
+    } catch (error) {
+      console.error('Failed to remove custom model:', error);
+      return false;
     }
   }
 }

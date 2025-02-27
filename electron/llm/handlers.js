@@ -1,9 +1,10 @@
 import { ipcMain } from 'electron'
 import { ModelDetector } from './detector'
 import { NetworkClient } from './network'
-import { LMStudioClient, OllamaClient, ExoClient, VLLMClient } from './clients'
+import { LMStudioClient, OllamaClient, ExoClient, VLLMClient, CustomLLMClient } from './clients'
 import axios from 'axios';
 import Store from 'electron-store';
+import { app } from 'electron';
 
 const store = new Store();
 let networkClient = null;
@@ -54,6 +55,8 @@ export function setupLLMHandlers() {
     try {
       if (isLocal) {
         let client;
+        let modelDetails = null;
+        
         switch (type) {
           case 'lmstudio':
             client = lmStudioClient;
@@ -67,6 +70,25 @@ export function setupLLMHandlers() {
           case 'vllm':
             client = vllmClient;
             break;
+          case 'custom':
+            // Get the custom model details from detector
+            const customModels = await detector.getCustomModels();
+            modelDetails = customModels.find(m => m.name === model)?.details;
+            
+            if (!modelDetails) {
+              throw new Error(`Custom model details not found for ${model}`);
+            }
+            
+            // Create a new custom client instance with the model details
+            client = new CustomLLMClient({
+              baseUrl: modelDetails.baseUrl,
+              apiKey: modelDetails.apiKey,
+              modelType: modelDetails.modelType,
+            });
+            
+            // Use the external model ID for the API request instead of the display name
+            model = modelDetails.externalModelId || model;
+            break;
           default:
             throw new Error(`Unsupported local model type: ${type}`);
         }
@@ -75,7 +97,8 @@ export function setupLLMHandlers() {
           const response = await client.generateCompletion(model, messages, { 
             temperature, 
             max_tokens,
-            signal: abortController.signal 
+            signal: abortController.signal,
+            useAnthropicV1: type === 'custom' && modelDetails?.useAnthropicV1 || false
           });
           if (!response || (!response.content && !response.choices?.[0]?.message?.content)) {
             throw new Error('Invalid response from local model');
@@ -143,13 +166,28 @@ export function setupLLMHandlers() {
         throw new Error('Request timed out. Please try again.');
       }
       
+      // Improved error handling for response data errors
       if (error.response?.data?.error) {
-        throw error.response.data.error;
+        // If error.response.data.error is an object, extract the message
+        if (typeof error.response.data.error === 'object') {
+          throw new Error(error.response.data.error.message || 'Unknown API error');
+        }
+        throw new Error(error.response.data.error);
       }
       
       // For socket hang up specifically
-      if (error.message.includes('socket hang up')) {
+      if (error.message?.includes('socket hang up')) {
         throw new Error('Connection was interrupted. Please try again.');
+      }
+      
+      // Ensure we always throw a proper Error with a string message
+      if (typeof error === 'object' && !(error instanceof Error)) {
+        throw new Error(JSON.stringify(error) || 'Unknown error occurred');
+      }
+      
+      // If it's already an Error instance but without a message
+      if (error instanceof Error && !error.message) {
+        throw new Error('Unknown error occurred during chat completion');
       }
       
       throw error;
@@ -168,7 +206,13 @@ export function setupLLMHandlers() {
 
   ipcMain.handle('llm:connect', async (_, models) => {
     try {
-      if (!networkClient) networkClient = new NetworkClient();
+      // Clean up existing client if it exists
+      if (networkClient) {
+        await networkClient.cleanup(true);
+        networkClient = null;
+      }
+      
+      networkClient = new NetworkClient();
       if (!models || !models.length) {
         throw new Error('No models provided for connection');
       }
@@ -176,6 +220,11 @@ export function setupLLMHandlers() {
       return { success: true };
     } catch (error) {
       console.error('Connection failed:', error);
+      // Clean up on error
+      if (networkClient) {
+        await networkClient.cleanup(true);
+        networkClient = null;
+      }
       return { success: false, error: error.message };
     }
   });
@@ -188,8 +237,39 @@ export function setupLLMHandlers() {
       }
       return { success: true };
     } catch (error) {
+      console.error('Disconnect error:', error);
+      // Force cleanup even if disconnect fails
+      if (networkClient) {
+        try {
+          await networkClient.cleanup(true);
+        } catch (cleanupError) {
+          console.error('Forced cleanup error:', cleanupError);
+        }
+        networkClient = null;
+      }
       return { success: false, error: error.message };
     }
+  });
+
+  // Add app quit handler to ensure cleanup
+  app.on('before-quit', async () => {
+    if (networkClient) {
+      try {
+        await networkClient.cleanup(true);
+        networkClient = null;
+      } catch (error) {
+        console.error('Quit cleanup error:', error);
+      }
+    }
+  });
+
+  // Add handlers for custom models
+  ipcMain.handle('llm:addCustomModel', async (event, modelConfig) => {
+    return await detector.addCustomModel(modelConfig);
+  });
+
+  ipcMain.handle('llm:removeCustomModel', async (event, modelName) => {
+    return await detector.removeCustomModel(modelName);
   });
 }
 

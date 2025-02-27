@@ -67,22 +67,23 @@ export function ChatProvider({ children }) {
     }
   }, []);
 
+  // Function to save conversations to local storage
+  const saveConversations = async () => {
+    setIsSaving(true);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
+    } catch (error) {
+      console.error('Failed to save conversations:', error);
+      toast.error('Failed to save conversation changes');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   // Save conversations to local storage with debounce
   useEffect(() => {
     if (conversations.length === 0) return;
     
-    const saveConversations = async () => {
-      setIsSaving(true);
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
-      } catch (error) {
-        console.error('Failed to save conversations:', error);
-        toast.error('Failed to save conversation changes');
-      } finally {
-        setIsSaving(false);
-      }
-    };
-
     const timeoutId = setTimeout(saveConversations, 500);
     return () => clearTimeout(timeoutId);
   }, [conversations]);
@@ -212,33 +213,80 @@ export function ChatProvider({ children }) {
       setCurrentConversation(conversation);
       setIsLoading(true);
   
-      const messages = chatConfig.systemPrompt ? 
-        [{ role: 'system', content: chatConfig.systemPrompt }, ...conversation.messages] :
-        conversation.messages;
+      // Prepare messages for the API call
+      let messagesToSend = [...conversation.messages];
+      
+      // If we're regenerating (existingConversation exists), we need to find the last user message
+      if (existingConversation) {
+        const lastUserMessageIndex = messagesToSend.length - 1;
+        messagesToSend = messagesToSend.slice(0, lastUserMessageIndex + 1);
+      }
+      
+      // Add system prompt if configured
+      if (chatConfig.systemPrompt) {
+        messagesToSend = [{ role: 'system', content: chatConfig.systemPrompt }, ...messagesToSend];
+      }
+      
+      console.log('Sending messages to LLM:', messagesToSend);
   
-      const response = await window.electron.llm.chat({
-        model: modelId,
-        messages,
-        temperature: chatConfig.temperature,
-        max_tokens: chatConfig.maxTokens,
-        type: localModels.find(m => m.name === modelId || m.id === modelId)?.type,
-        isLocal: localModels.some(m => m.name === modelId || m.id === modelId),
-        requestId
-      });
-  
-      if (!response?.content) throw new Error('Invalid response');
-  
-      // Keep all existing messages and add the assistant's response
-      conversation.messages = [
-        ...conversation.messages,
-        { role: 'assistant', content: response.content, timestamp: new Date().toISOString() }
-      ];
-      conversation.isThinking = false;
-      conversation.updatedAt = new Date().toISOString();
-  
-      setConversations(prev => [conversation, ...prev.filter(c => c.id !== conversation.id)]);
-      setCurrentConversation(conversation);
-  
+      try {
+        const response = await window.electron.llm.chat({
+          model: modelId,
+          messages: messagesToSend,
+          temperature: chatConfig.temperature,
+          max_tokens: chatConfig.maxTokens,
+          type: localModels.find(m => m.name === modelId || m.id === modelId)?.type,
+          isLocal: localModels.some(m => m.name === modelId || m.id === modelId),
+          requestId
+        });
+        
+        if (!response?.content) throw new Error('Invalid response');
+    
+        // Keep all existing messages and add the assistant's response
+        conversation.messages = [
+          ...conversation.messages,
+          { role: 'assistant', content: response.content, timestamp: new Date().toISOString() }
+        ];
+        conversation.isThinking = false;
+        conversation.updatedAt = new Date().toISOString();
+    
+        setConversations(prev => [conversation, ...prev.filter(c => c.id !== conversation.id)]);
+        setCurrentConversation(conversation);
+      } catch (error) {
+        // Handle specific error from the electron process
+        console.error('Model inference error:', error);
+        
+        // Format the error message for display
+        let errorMessage = 'An error occurred while generating a response';
+        
+        if (error instanceof Error) {
+          errorMessage = error.message;
+        } else if (typeof error === 'string') {
+          errorMessage = error;
+        } else if (typeof error === 'object') {
+          // Try to extract a message from the error object
+          errorMessage = error.message || error.error || JSON.stringify(error);
+        }
+        
+        // Add the error message to the conversation
+        conversation.messages = [
+          ...conversation.messages,
+          { 
+            role: 'assistant', 
+            content: `**Error:** ${errorMessage}`, 
+            timestamp: new Date().toISOString(),
+            isError: true
+          }
+        ];
+        conversation.isThinking = false;
+        conversation.updatedAt = new Date().toISOString();
+        
+        setConversations(prev => [conversation, ...prev.filter(c => c.id !== conversation.id)]);
+        setCurrentConversation(conversation);
+        
+        // Re-throw the error for the UI to handle
+        throw new Error(errorMessage);
+      }
     } catch (error) {
       requestError = error;
       const isCancelled = error.message?.includes('Request cancelled by user');
@@ -256,11 +304,12 @@ export function ChatProvider({ children }) {
       // Re-throw the error for the UI to handle
       throw error;
     } finally {
-      // Only reset loading state if it wasn't a cancellation
-      if (!requestError?.message?.includes('Request cancelled by user')) {
+      if (!requestError) {
         setIsLoading(false);
-        setCurrentRequestId(null);
       }
+      
+      // Save conversations to local storage
+      saveConversations();
     }
   };
 
@@ -374,7 +423,7 @@ export function ChatProvider({ children }) {
       editedAt: new Date().toISOString()
     };
 
-    // Si shouldRegenerate es true, eliminar mensajes posteriores
+    // If shouldRegenerate is true, remove all subsequent messages
     if (shouldRegenerate) {
       updatedMessages = updatedMessages.slice(0, messageIndex + 1);
     }
@@ -382,7 +431,9 @@ export function ChatProvider({ children }) {
     const updatedConversation = {
       ...conversation,
       messages: updatedMessages,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      // Set isThinking to true if we're going to regenerate
+      isThinking: shouldRegenerate
     };
 
     setConversations(prev => [
@@ -391,9 +442,32 @@ export function ChatProvider({ children }) {
     ]);
     setCurrentConversation(updatedConversation);
 
-    // Si shouldRegenerate es true, regenerar la respuesta
+    // If shouldRegenerate is true, regenerate the response
     if (shouldRegenerate) {
-      sendMessage(newContent, conversation.modelId, conversationId);
+      // Only regenerate if the edited message is from a user
+      if (updatedMessages[messageIndex].role === 'user') {
+        sendMessage(newContent, conversation.modelId, conversationId, updatedConversation);
+      } else {
+        // If it's an assistant message, find the last user message before this point
+        let userMessageIndex = messageIndex - 1;
+        while (userMessageIndex >= 0 && updatedMessages[userMessageIndex].role !== 'user') {
+          userMessageIndex--;
+        }
+        
+        if (userMessageIndex >= 0) {
+          const userMessage = updatedMessages[userMessageIndex];
+          sendMessage(userMessage.content, conversation.modelId, conversationId, updatedConversation);
+        } else {
+          // If no user message found, just update the conversation without regenerating
+          updatedConversation.isThinking = false;
+          setConversations(prev => [
+            updatedConversation,
+            ...prev.filter(c => c.id !== conversationId)
+          ]);
+          setCurrentConversation(updatedConversation);
+          toast.error('No user message found to regenerate response');
+        }
+      }
     }
   };
 
@@ -409,8 +483,12 @@ export function ChatProvider({ children }) {
     try {
       let userMessageIndex = messageIndex;
 
-      while (userMessageIndex >= 0 && conversation.messages[userMessageIndex].role !== 'user') {
-        userMessageIndex--;
+      // If this is an assistant message, find the last user message before this point
+      if (conversation.messages[messageIndex].role === 'assistant') {
+        userMessageIndex = messageIndex - 1;
+        while (userMessageIndex >= 0 && conversation.messages[userMessageIndex].role !== 'user') {
+          userMessageIndex--;
+        }
       }
 
       if (userMessageIndex === -1) {
@@ -418,11 +496,11 @@ export function ChatProvider({ children }) {
         return;
       }
 
-      console.log('userMessageIndex', userMessageIndex);
+      console.log('Regenerating from user message at index:', userMessageIndex);
 
-      // Keep all messages up to the user message, removing the assistant message and any subsequent messages
-      const updatedMessages = conversation.messages.slice(0, userMessageIndex+1);
-      console.log('updatedMessages', updatedMessages);
+      // Keep all messages up to and including the user message
+      const updatedMessages = conversation.messages.slice(0, userMessageIndex + 1);
+      console.log('Messages to keep:', updatedMessages);
 
       const updatedConversation = {
         ...conversation,
@@ -438,6 +516,7 @@ export function ChatProvider({ children }) {
       setCurrentConversation(updatedConversation);
 
       const userMessage = conversation.messages[userMessageIndex];
+      console.log('Regenerating response for message:', userMessage);
   
       await sendMessage(userMessage.content, currentConversation.modelId, currentConversation.id, updatedConversation);
     } catch (error) {

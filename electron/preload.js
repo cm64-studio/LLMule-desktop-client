@@ -34,11 +34,18 @@ contextBridge.exposeInMainWorld('electron', {
     disconnect: () => ipcRenderer.invoke('llm:disconnect'),
     chat: (params) => ipcRenderer.invoke('llm:chat', params),
     cancel: (requestId) => ipcRenderer.invoke('llm:cancel', requestId),
+    addCustomModel: (modelConfig) => ipcRenderer.invoke('llm:addCustomModel', modelConfig),
+    removeCustomModel: (modelName) => ipcRenderer.invoke('llm:removeCustomModel', modelName),
     onActivity: (callback) => {
       activityCallback = callback;
     },
     onStatus: (callback) => {
       ipcRenderer.on('llm:status', (_, data) => callback(data));
     }
-  }
+  },
+  system: {
+    onSuspend: (callback) => ipcRenderer.on('system:suspend', () => callback()),
+    onResume: (callback) => ipcRenderer.on('system:resume', () => callback()),
+    onUnlock: (callback) => ipcRenderer.on('system:unlock', () => callback()),
+  },
 })
