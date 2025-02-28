@@ -29,6 +29,7 @@
     "@tailwindcss/typography": "^0.5.10",
     "autoprefixer": "^10.4.20",
     "axios": "^1.7.9",
+    "bufferutil": "^4.0.8",
     "electron-store": "^10.0.0",
     "electron-updater": "^6.3.9",
     "postcss": "^8.4.49",
@@ -39,6 +40,7 @@
     "react-syntax-highlighter": "^15.5.0",
     "remark-gfm": "^4.0.0",
     "tailwindcss": "^3.4.17",
+    "utf-8-validate": "^6.0.3",
     "uuid": "^11.0.5",
     "vite-plugin-electron": "^0.29.0",
     "ws": "^8.18.0"
