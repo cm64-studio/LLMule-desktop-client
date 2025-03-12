@@ -18,6 +18,7 @@ export function ChatProvider({ children }) {
   const [conversations, setConversations] = useState([]);
   const [currentConversation, setCurrentConversation] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [chatConfig, setChatConfig] = useState(DEFAULT_CONFIG);
   const [currentRequestId, setCurrentRequestId] = useState(null);
@@ -174,29 +175,45 @@ export function ChatProvider({ children }) {
   
     let conversation;
     let requestError = null;
-    const requestId = Date.now().toString();
+    const requestId = uuidv4();
     setCurrentRequestId(requestId);
     
     try {
-      const userMessage = { 
-        role: 'user', 
-        content, 
-        timestamp: new Date().toISOString() 
-      };
-  
+      setIsLoading(true);
+      
+      // Check if we're regenerating a response
       if (existingConversation) {
-        conversation = existingConversation;
-      } else if (!conversationId) {
+        conversation = { ...existingConversation };
+      } 
+      // Check if we're continuing an existing conversation
+      else if (conversationId) {
+        conversation = conversations.find(c => c.id === conversationId);
+        if (!conversation) {
+          throw new Error('Conversation not found');
+        }
+        conversation = { ...conversation };
+      } 
+      // Otherwise, create a new conversation
+      else {
         conversation = {
-          id: crypto.randomUUID(),
-          modelId,
-          messages: [userMessage],
-          title: content.slice(0, 30) + (content.length > 30 ? '...' : ''),
+          id: uuidv4(),
+          title: 'New Conversation',
+          modelId: modelId || defaultModelId,
+          messages: [],
           createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+          updatedAt: new Date().toISOString(),
+          isThinking: true
         };
-      } else {
-        conversation = { ...currentConversation };
+      }
+  
+      // Add the user message if it's not a regeneration
+      if (!existingConversation) {
+        const userMessage = {
+          role: 'user',
+          content,
+          timestamp: new Date().toISOString()
+        };
+        
         // Don't modify messages if regenerating
         if (!conversation.messages.some(m => m.content === content && m.role === 'user')) {
           conversation.messages = [...conversation.messages, userMessage];
@@ -224,88 +241,213 @@ export function ChatProvider({ children }) {
       
       // Add system prompt if configured
       if (chatConfig.systemPrompt) {
-        messagesToSend = [{ role: 'system', content: chatConfig.systemPrompt }, ...messagesToSend];
+        let systemPrompt = chatConfig.systemPrompt;
+        
+        if (!systemPrompt.includes('<thinking>') && !systemPrompt.includes('<think>') && !systemPrompt.includes('thinking process')) {
+          systemPrompt += '\n\nFor complex reasoning, you can use <thinking></thinking> or <think></think> tags at the beginning of your response to show your step-by-step reasoning process. This will be displayed in a collapsible section in the UI.';
+        }
+        
+        messagesToSend = [{ role: 'system', content: systemPrompt }, ...messagesToSend];
       }
       
       console.log('Sending messages to LLM:', messagesToSend);
   
       try {
+        // Determine if the model is a network model
+        const isNetworkModel = !localModels.some(m => m.name === modelId || m.id === modelId);
+        const shouldStream = !isNetworkModel; // Only stream for local models
+
+        // Initialize a streaming response
+        let streamedContent = '';
+        
+        // For network models, just set thinking state without adding empty message
+        if (!shouldStream) {
+          conversation.isThinking = true;
+          setConversations(prev => [conversation, ...prev.filter(c => c.id !== conversation.id)]);
+          setCurrentConversation(conversation);
+        } else {
+          // Only add placeholder message for streaming models
+          const assistantMessage = { 
+            role: 'assistant', 
+            content: '', 
+            timestamp: new Date().toISOString(),
+            isStreaming: true
+          };
+          
+          conversation.messages = [...conversation.messages, assistantMessage];
+          conversation.isThinking = false;
+          setConversations(prev => [conversation, ...prev.filter(c => c.id !== conversation.id)]);
+          setCurrentConversation(conversation);
+        }
+        
+        setIsStreaming(shouldStream);
+        
+        // Handle the stream chunk updates
+        const handleStreamUpdate = (chunk) => {
+          if (chunk && chunk.content && shouldStream) {
+            console.log('Stream update received:', chunk.content.length, 'characters');
+            
+            // Update the streamed content
+            streamedContent += chunk.content;
+            
+            // Update the message in the conversation
+            const updatedMessages = [...conversation.messages];
+            const lastIndex = updatedMessages.length - 1;
+            updatedMessages[lastIndex] = {
+              ...updatedMessages[lastIndex],
+              content: streamedContent,
+              isStreaming: true
+            };
+            
+            conversation.messages = updatedMessages;
+            
+            // Force a re-render by creating a new conversation object
+            const updatedConversation = {...conversation};
+            
+            setConversations(prev => [updatedConversation, ...prev.filter(c => c.id !== conversation.id)]);
+            setCurrentConversation(updatedConversation);
+          }
+        };
+        
+        // Request with streaming enabled for local models only
         const response = await window.electron.llm.chat({
           model: modelId,
           messages: messagesToSend,
           temperature: chatConfig.temperature,
           max_tokens: chatConfig.maxTokens,
+          stream: shouldStream,
           type: localModels.find(m => m.name === modelId || m.id === modelId)?.type,
-          isLocal: localModels.some(m => m.name === modelId || m.id === modelId),
-          requestId
+          isLocal: !isNetworkModel,
+          requestId,
+          onUpdate: shouldStream ? handleStreamUpdate : undefined
         });
         
-        if (!response?.content) throw new Error('Invalid response');
-    
-        // Keep all existing messages and add the assistant's response
-        conversation.messages = [
-          ...conversation.messages,
-          { role: 'assistant', content: response.content, timestamp: new Date().toISOString() }
-        ];
-        conversation.isThinking = false;
-        conversation.updatedAt = new Date().toISOString();
-    
-        setConversations(prev => [conversation, ...prev.filter(c => c.id !== conversation.id)]);
-        setCurrentConversation(conversation);
-      } catch (error) {
-        // Handle specific error from the electron process
-        console.error('Model inference error:', error);
-        
-        // Format the error message for display
-        let errorMessage = 'An error occurred while generating a response';
-        
-        if (error instanceof Error) {
-          errorMessage = error.message;
-        } else if (typeof error === 'string') {
-          errorMessage = error;
-        } else if (typeof error === 'object') {
-          // Try to extract a message from the error object
-          errorMessage = error.message || error.error || JSON.stringify(error);
-        }
-        
-        // Add the error message to the conversation
-        conversation.messages = [
-          ...conversation.messages,
-          { 
-            role: 'assistant', 
-            content: `**Error:** ${errorMessage}`, 
-            timestamp: new Date().toISOString(),
-            isError: true
+        // When streaming is complete or if streaming wasn't supported
+        if (response?.content) {
+          // For non-streaming responses or final content
+          const finalContent = response.content;
+          
+          if (!shouldStream) {
+            // For network models, add the message now that we have content
+            conversation.messages = [...conversation.messages, {
+              role: 'assistant',
+              content: finalContent,
+              timestamp: new Date().toISOString(),
+              isStreaming: false
+            }];
+            
+            // Update balance after using network model (spending tokens)
+            setTimeout(() => {
+              checkBalance(true);
+            }, 2000);
+          } else {
+            // For streaming models, update the existing message
+            const updatedMessages = [...conversation.messages];
+            const lastIndex = updatedMessages.length - 1;
+            updatedMessages[lastIndex] = {
+              role: 'assistant',
+              content: finalContent,
+              timestamp: new Date().toISOString(),
+              isStreaming: false
+            };
+            conversation.messages = updatedMessages;
           }
-        ];
-        conversation.isThinking = false;
-        conversation.updatedAt = new Date().toISOString();
-        
-        setConversations(prev => [conversation, ...prev.filter(c => c.id !== conversation.id)]);
-        setCurrentConversation(conversation);
-        
-        // Re-throw the error for the UI to handle
-        throw new Error(errorMessage);
-      }
-    } catch (error) {
-      requestError = error;
-      const isCancelled = error.message?.includes('Request cancelled by user');
-      console.error('Model inference failed:', error);
-      
-      if (conversation) {
-        // Only update conversation state if it wasn't a cancellation
-        if (!isCancelled) {
+          
           conversation.isThinking = false;
+          conversation.updatedAt = new Date().toISOString();
+          
           setConversations(prev => [conversation, ...prev.filter(c => c.id !== conversation.id)]);
           setCurrentConversation(conversation);
         }
+      } catch (apiError) {
+        console.error('API error:', apiError);
+        
+        if (apiError.message?.includes('An object could not be cloned')) {
+          // This is likely a serialization error, try again without streaming
+          console.log('Serialization error detected, retrying without streaming');
+          
+          const response = await window.electron.llm.chat({
+            model: modelId,
+            messages: messagesToSend,
+            temperature: chatConfig.temperature,
+            max_tokens: chatConfig.maxTokens,
+            stream: false, // Disable streaming
+            type: localModels.find(m => m.name === modelId || m.id === modelId)?.type,
+            isLocal: localModels.some(m => m.name === modelId || m.id === modelId),
+            requestId
+          });
+          
+          if (response?.content) {
+            // Update the last message with the content
+            const updatedMessages = [...conversation.messages];
+            const lastIndex = updatedMessages.length - 1;
+            updatedMessages[lastIndex] = {
+              role: 'assistant',
+              content: response.content,
+              timestamp: new Date().toISOString(),
+              isStreaming: false
+            };
+            
+            conversation.messages = updatedMessages;
+            conversation.isThinking = false;
+            conversation.updatedAt = new Date().toISOString();
+            
+            setConversations(prev => [conversation, ...prev.filter(c => c.id !== conversation.id)]);
+            setCurrentConversation(conversation);
+
+            // Update balance after using network model (spending tokens)
+            if (!isNetworkModel) {
+              setTimeout(() => {
+                checkBalance(true);
+              }, 2000);
+            }
+          } else {
+            throw new Error('Invalid response');
+          }
+        } else {
+          // Re-throw other errors
+          throw apiError;
+        }
       }
       
+      setIsStreaming(false);
+    } catch (error) {
+      // Handle specific error from the electron process
+      console.error('Model inference error:', error);
+      
+      // Format the error message for display
+      let errorMessage = 'An error occurred while generating a response';
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (typeof error === 'object') {
+        // Try to extract a message from the error object
+        errorMessage = error.message || error.error || JSON.stringify(error);
+      }
+      
+      // Add the error message to the conversation
+      conversation.messages = [
+        ...conversation.messages,
+        { 
+          role: 'assistant', 
+          content: `**Error:** ${errorMessage}`, 
+          timestamp: new Date().toISOString(),
+          isError: true
+        }
+      ];
+      conversation.isThinking = false;
+      conversation.updatedAt = new Date().toISOString();
+      
+      setConversations(prev => [conversation, ...prev.filter(c => c.id !== conversation.id)]);
+      setCurrentConversation(conversation);
+      
       // Re-throw the error for the UI to handle
-      throw error;
+      throw new Error(errorMessage);
     } finally {
-      // Always set isLoading to false, regardless of whether there was an error
       setIsLoading(false);
+      setIsStreaming(false);
       setCurrentRequestId(null);
       
       // Save conversations to local storage
@@ -340,6 +482,7 @@ export function ChatProvider({ children }) {
         }
         
         setIsLoading(false);
+        setIsStreaming(false);
         setCurrentRequestId(null);
         toast.success('Generation cancelled');
       } catch (error) {
@@ -472,55 +615,138 @@ export function ChatProvider({ children }) {
   };
 
   const regenerateResponse = async (messageIndex) => {
-    if (!networkModels.length && !localModels.length) {
-      toast.error('No models available');
-      return;
-    }
-
-    const conversation = conversations.find(c => c.id === currentConversation.id);
-    if (!conversation) return;
+    if (!currentConversation) return;
   
     try {
-      let userMessageIndex = messageIndex;
-
-      // If this is an assistant message, find the last user message before this point
-      if (conversation.messages[messageIndex].role === 'assistant') {
-        userMessageIndex = messageIndex - 1;
-        while (userMessageIndex >= 0 && conversation.messages[userMessageIndex].role !== 'user') {
-          userMessageIndex--;
-        }
-      }
-
-      if (userMessageIndex === -1) {
-        toast.error('No user message found to regenerate response');
+      console.log(`Regenerating response from message index ${messageIndex}`);
+      
+      // Find the most recent user message up to the specified index
+      const messages = currentConversation.messages.slice(0, messageIndex + 1);
+      const lastUserMessageIndex = messages.findLastIndex(m => m.role === 'user');
+      
+      if (lastUserMessageIndex === -1) {
+        console.error('No user message found to regenerate from');
         return;
       }
-
-      console.log('Regenerating from user message at index:', userMessageIndex);
-
-      // Keep all messages up to and including the user message
-      const updatedMessages = conversation.messages.slice(0, userMessageIndex + 1);
-      console.log('Messages to keep:', updatedMessages);
-
-      const updatedConversation = {
-        ...conversation,
-        messages: updatedMessages,
-        isThinking: true,
-        updatedAt: new Date().toISOString()
+      
+      // Get a clean copy of the conversation state up to the last user message
+      const conversationCopy = {
+        ...currentConversation,
+        messages: messages.slice(0, lastUserMessageIndex + 1)
       };
-
-      setConversations(prev => [
-        updatedConversation,
-        ...prev.filter(c => c.id !== conversation.id)
-      ]);
-      setCurrentConversation(updatedConversation);
-
-      const userMessage = conversation.messages[userMessageIndex];
-      console.log('Regenerating response for message:', userMessage);
-  
-      await sendMessage(userMessage.content, currentConversation.modelId, currentConversation.id, updatedConversation);
+      
+      const lastUserMessage = messages[lastUserMessageIndex];
+      
+      console.log('Regenerating from message:', lastUserMessage);
+      
+      // Call sendMessage with the content of the last user message and the current conversation state
+      try {
+        await sendMessage(
+          lastUserMessage.content,
+          currentConversation.modelId,
+          null,
+          conversationCopy
+        );
+      } catch (e) {
+        console.error('Failed to regenerate:', e);
+        
+        // If there's a serialization error, try again without streaming
+        if (e.message?.includes('An object could not be cloned')) {
+          console.log('Serialization error during regeneration, retrying without streaming');
+          
+          // We need to get a new requestId
+          const requestId = uuidv4();
+          setCurrentRequestId(requestId);
+          
+          // Re-create the placeholder message
+          const assistantMessage = { 
+            role: 'assistant', 
+            content: '', 
+            timestamp: new Date().toISOString(),
+            isStreaming: false
+          };
+          
+          conversationCopy.messages = [...conversationCopy.messages, assistantMessage];
+          conversationCopy.isThinking = true;
+          
+          // Update UI
+          setConversations(prev => [conversationCopy, ...prev.filter(c => c.id !== conversationCopy.id)]);
+          setCurrentConversation(conversationCopy);
+          setIsLoading(true);
+          
+          // Prepare messages for API
+          let messagesToSend = [...conversationCopy.messages];
+          
+          if (chatConfig.systemPrompt) {
+            let systemPrompt = chatConfig.systemPrompt;
+            
+            if (!systemPrompt.includes('<thinking>') && !systemPrompt.includes('<think>') && !systemPrompt.includes('thinking process')) {
+              systemPrompt += '\n\nFor complex reasoning, you can use <thinking></thinking> or <think></think> tags at the beginning of your response to show your step-by-step reasoning process. This will be displayed in a collapsible section in the UI.';
+            }
+            
+            messagesToSend = [{ role: 'system', content: systemPrompt }, ...messagesToSend];
+          }
+          
+          // Try again without streaming
+          try {
+            const response = await window.electron.llm.chat({
+              model: currentConversation.modelId,
+              messages: messagesToSend,
+              temperature: chatConfig.temperature,
+              max_tokens: chatConfig.maxTokens,
+              stream: false, // Disable streaming
+              type: localModels.find(m => m.name === currentConversation.modelId || m.id === currentConversation.modelId)?.type,
+              isLocal: localModels.some(m => m.name === currentConversation.modelId || m.id === currentConversation.modelId),
+              requestId
+            });
+            
+            if (response?.content) {
+              // Update the last message with the content
+              const updatedMessages = [...conversationCopy.messages];
+              const lastIndex = updatedMessages.length - 1;
+              updatedMessages[lastIndex] = {
+                role: 'assistant',
+                content: response.content,
+                timestamp: new Date().toISOString(),
+                isStreaming: false
+              };
+              
+              conversationCopy.messages = updatedMessages;
+              conversationCopy.isThinking = false;
+              conversationCopy.updatedAt = new Date().toISOString();
+              
+              setConversations(prev => [conversationCopy, ...prev.filter(c => c.id !== conversationCopy.id)]);
+              setCurrentConversation(conversationCopy);
+            } else {
+              throw new Error('Invalid response');
+            }
+          } catch (finalError) {
+            // Handle any remaining errors
+            console.error('Final regeneration attempt failed:', finalError);
+            toast.error('Failed to regenerate response: ' + finalError.message);
+            
+            // Update UI to show error state
+            conversationCopy.isThinking = false;
+            conversationCopy.messages = [
+              ...conversationCopy.messages.slice(0, -1),
+              { 
+                role: 'assistant', 
+                content: `**Error:** ${finalError.message}`, 
+                timestamp: new Date().toISOString(),
+                isError: true
+              }
+            ];
+            
+            setConversations(prev => [conversationCopy, ...prev.filter(c => c.id !== conversationCopy.id)]);
+            setCurrentConversation(conversationCopy);
+          } finally {
+            setIsLoading(false);
+            setIsStreaming(false);
+          }
+        }
+      }
     } catch (error) {
-      console.error('Failed to regenerate:', error);
+      console.error('Regeneration error:', error);
       toast.error('Failed to regenerate response');
     }
   };
@@ -536,6 +762,7 @@ export function ChatProvider({ children }) {
     sendMessage,
     changeConversationModel,
     isLoading,
+    isStreaming,
     isSaving,
     deleteMessage,
     editMessage,

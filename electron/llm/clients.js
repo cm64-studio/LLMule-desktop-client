@@ -319,6 +319,136 @@ export class CustomLLMClient extends LLMClient {
     }
   }
 
+  // Add streaming support
+  async *generateCompletionStream(model, messages, options = {}) {
+    try {
+      const headers = {
+        'Content-Type': 'application/json',
+        ...this.headers
+      };
+      
+      // Add authorization if API key exists
+      if (this.apiKey) {
+        if (this.modelType === 'anthropic') {
+          headers['x-api-key'] = this.apiKey;
+          headers['anthropic-version'] = 'bedrock-2023-05-31';
+          headers['Accept'] = 'text/event-stream';
+        } else {
+          // Default Bearer token auth for OpenAI and most others
+          headers['Authorization'] = `Bearer ${this.apiKey}`;
+          headers['Accept'] = 'text/event-stream';
+        }
+      }
+
+      const endpoint = `${this.baseUrl}/chat/completions`;
+      const payload = {
+        model: model,
+        messages,
+        temperature: options.temperature || 0.7,
+        max_tokens: options.max_tokens || 4096,
+        stream: true
+      };
+
+      // Handle Anthropic V1 format if needed
+      if (this.modelType === 'anthropic' && options.useAnthropicV1) {
+        const systemMessage = messages.find(m => m.role === 'system');
+        const userMessages = messages.filter(m => m.role === 'user');
+        const assistantMessages = messages.filter(m => m.role === 'assistant');
+        
+        // Combine all messages into a single prompt with proper format
+        let prompt = '';
+        if (systemMessage) {
+          prompt += `${systemMessage.content}\n\n`;
+        }
+        
+        // Alternate between user and assistant
+        const maxLen = Math.max(userMessages.length, assistantMessages.length);
+        for (let i = 0; i < maxLen; i++) {
+          if (i < userMessages.length) {
+            prompt += `Human: ${userMessages[i].content}\n\n`;
+          }
+          if (i < assistantMessages.length) {
+            prompt += `Assistant: ${assistantMessages[i].content}\n\n`;
+          }
+        }
+        
+        // Add the final "Assistant: " prompt
+        prompt += 'Assistant: ';
+        
+        // Replace the payload for anthropic
+        delete payload.messages;
+        payload.prompt = prompt;
+      }
+
+      console.log(`Sending streaming request to ${endpoint} with model ${model}`);
+      
+      // Make the streaming request
+      const response = await axios.post(endpoint, payload, {
+        headers,
+        responseType: 'stream',
+        signal: options.signal
+      });
+
+      // Process the stream based on provider type
+      for await (const chunk of response.data) {
+        // Convert chunk to string and split by lines
+        const lines = chunk.toString().split('\n').filter(line => line.trim() !== '');
+        
+        for (const line of lines) {
+          // Skip empty lines and [DONE] markers
+          if (!line || line.includes('[DONE]')) continue;
+          
+          // Handle SSE format (data: prefix)
+          let data;
+          if (line.startsWith('data:')) {
+            try {
+              // Parse the JSON after 'data: '
+              data = JSON.parse(line.substring(5).trim());
+            } catch (e) {
+              console.warn('Failed to parse SSE data:', line);
+              continue;
+            }
+          } else {
+            try {
+              // Try parsing as regular JSON
+              data = JSON.parse(line);
+            } catch (e) {
+              console.warn('Failed to parse streaming data:', line);
+              continue;
+            }
+          }
+          
+          // Extract content based on provider format
+          let content = '';
+          
+          if (this.modelType === 'anthropic' && options.useAnthropicV1) {
+            // Anthropic V1 format
+            content = data.completion || '';
+          } else if (this.modelType === 'anthropic') {
+            // Anthropic V2+ format
+            content = data.delta?.text || data.content || '';
+          } else {
+            // OpenAI-compatible format
+            content = data.choices?.[0]?.delta?.content || 
+                     data.choices?.[0]?.message?.content || '';
+          }
+          
+          if (content) {
+            yield { content };
+          }
+        }
+      }
+    } catch (error) {
+      if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+        throw new Error('Request cancelled by user');
+      }
+      
+      console.error('Custom LLM streaming error:', error);
+      throw new Error(error.response?.data?.error?.message || error.message || 
+                     `Failed to stream from ${this.modelType || 'custom'} model`);
+    }
+  }
+
   _estimateTokenCount(messages) {
     let totalChars = 0;
     messages.forEach(msg => {

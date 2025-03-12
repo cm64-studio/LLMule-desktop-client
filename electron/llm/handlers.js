@@ -46,7 +46,7 @@ export function setupLLMHandlers() {
     return await detector.detectAll();
   });
 
-  ipcMain.handle('llm:chat', async (event, { model, messages, temperature, max_tokens, type, isLocal, requestId }) => {
+  ipcMain.handle('llm:chat', async (event, { model, messages, temperature, max_tokens, type, isLocal, requestId, stream }) => {
     const abortController = new AbortController();
     
     // Store the abort controller
@@ -93,59 +93,172 @@ export function setupLLMHandlers() {
             throw new Error(`Unsupported local model type: ${type}`);
         }
 
-        const response = await retryWithBackoff(async () => {
-          const response = await client.generateCompletion(model, messages, { 
-            temperature, 
-            max_tokens,
-            signal: abortController.signal,
-            useAnthropicV1: type === 'custom' && modelDetails?.useAnthropicV1 || false
-          });
-          if (!response || (!response.content && !response.choices?.[0]?.message?.content)) {
-            throw new Error('Invalid response from local model');
+        // Check if streaming is requested and supported by the client
+        const shouldStream = stream === true && typeof client.generateCompletionStream === 'function';
+        if (shouldStream) {
+          // If streaming is supported, use it
+          let fullContent = '';
+          
+          try {
+            console.log(`Starting streaming with ${type} model: ${model}`);
+            for await (const chunk of client.generateCompletionStream(model, messages, { 
+              temperature, 
+              max_tokens,
+              signal: abortController.signal,
+              useAnthropicV1: type === 'custom' && modelDetails?.useAnthropicV1 || false
+            })) {
+              // Extract content from the chunk based on response format
+              let content = '';
+              if (chunk.content) {
+                content = chunk.content;
+              } else if (chunk.choices?.[0]?.delta?.content) {
+                content = chunk.choices[0].delta.content;
+              } else if (chunk.choices?.[0]?.message?.content) {
+                content = chunk.choices[0].message.content;
+              } else if (typeof chunk === 'string') {
+                content = chunk;
+              }
+              
+              if (content) {
+                fullContent += content;
+                // Send the chunk to the renderer process
+                event.sender.send(`llm:stream:${requestId}`, { content });
+              }
+            }
+            
+            // Clean up after successful completion
+            activeRequests.delete(requestId);
+            console.log(`Streaming completed for ${model}`);
+            
+            // Return the full content for fallback support
+            return { content: fullContent };
+          } catch (error) {
+            console.error(`Streaming error for ${model}:`, error);
+            if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+              throw new Error('Request cancelled by user');
+            }
+            throw error;
           }
-          // Normalize response format
-          return response.choices?.[0]?.message || response;
-        });
+        } else {
+          console.log(`Streaming not supported or disabled for ${type} model: ${model}`);
+          // Fallback to non-streaming if not supported
+          const response = await retryWithBackoff(async () => {
+            const response = await client.generateCompletion(model, messages, { 
+              temperature, 
+              max_tokens,
+              signal: abortController.signal,
+              useAnthropicV1: type === 'custom' && modelDetails?.useAnthropicV1 || false
+            });
+            if (!response || (!response.content && !response.choices?.[0]?.message?.content)) {
+              throw new Error('Invalid response from local model');
+            }
+            // Normalize response format
+            return response.choices?.[0]?.message || response;
+          });
 
-        // Clean up after successful completion
-        activeRequests.delete(requestId);
-        return response;
-
+          // Clean up after successful completion
+          activeRequests.delete(requestId);
+          return response;
+        }
       } else {
         const apiKey = await store.get('apiKey');
         if (!apiKey) {
           throw new Error('API key not found');
         }
 
-        const response = await retryWithBackoff(async () => {
-          const response = await axios.post(
-            `${process.env.API_URL}/v1/chat/completions`,
-            {
-              model,
-              messages,
-              temperature,
-              max_tokens,
-            },
-            {
-              headers: {
-                'Authorization': `Bearer ${apiKey}`,
-                'Accept': 'application/json'
+        // Check if streaming is requested
+        const shouldStream = stream === true;
+        if (shouldStream) {
+          let fullContent = '';
+          
+          try {
+            const response = await axios.post(
+              `${process.env.API_URL}/v1/chat/completions`,
+              {
+                model,
+                messages,
+                temperature,
+                max_tokens,
+                stream: true
               },
-              timeout: 60000, // 60 second timeout
-              signal: abortController.signal
+              {
+                headers: {
+                  'Authorization': `Bearer ${apiKey}`,
+                  'Accept': 'text/event-stream', // Required for streaming
+                  'Content-Type': 'application/json'
+                },
+                responseType: 'stream',
+                timeout: 60000, // 60 second timeout
+                signal: abortController.signal
+              }
+            );
+
+            // Process the stream
+            for await (const chunk of response.data) {
+              const lines = chunk.toString().split('\n').filter(line => line.trim() !== '');
+              
+              for (const line of lines) {
+                if (line.includes('[DONE]')) continue;
+                if (!line.startsWith('data:')) continue;
+                
+                try {
+                  const data = JSON.parse(line.substring(5));
+                  if (data.choices && data.choices[0]?.delta?.content) {
+                    const content = data.choices[0].delta.content;
+                    fullContent += content;
+                    
+                    // Send the chunk to the renderer process
+                    event.sender.send(`llm:stream:${requestId}`, { content });
+                  }
+                } catch (e) {
+                  console.error('Error parsing SSE data:', e);
+                }
+              }
             }
-          );
-
-          if (!response.data?.choices?.[0]?.message) {
-            throw new Error('Invalid response format from API');
+            
+            // Clean up after successful completion
+            activeRequests.delete(requestId);
+            
+            // Return the full content for fallback support
+            return { content: fullContent };
+          } catch (error) {
+            if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+              throw new Error('Request cancelled by user');
+            }
+            throw error;
           }
+        } else {
+          // Non-streaming fallback
+          const response = await retryWithBackoff(async () => {
+            const response = await axios.post(
+              `${process.env.API_URL}/v1/chat/completions`,
+              {
+                model,
+                messages,
+                temperature,
+                max_tokens,
+              },
+              {
+                headers: {
+                  'Authorization': `Bearer ${apiKey}`,
+                  'Accept': 'application/json'
+                },
+                timeout: 60000, // 60 second timeout
+                signal: abortController.signal
+              }
+            );
 
-          return response.data.choices[0].message;
-        });
+            if (!response.data?.choices?.[0]?.message) {
+              throw new Error('Invalid response format from API');
+            }
 
-        // Clean up after successful completion
-        activeRequests.delete(requestId);
-        return response;
+            return response.data.choices[0].message;
+          });
+
+          // Clean up after successful completion
+          activeRequests.delete(requestId);
+          return response;
+        }
       }
     } catch (error) {
       // Clean up on error

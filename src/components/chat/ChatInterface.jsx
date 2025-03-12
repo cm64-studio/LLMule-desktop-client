@@ -162,6 +162,33 @@ export default function ChatInterface() {
     </div>
   );
 
+  // Add this helper function to check if a model is truly local
+  const isModelTrulyLocal = (model, localModels) => {
+    // Check if it's in the local models list
+    const isInLocalList = localModels.some(m => m.name === model || m.id === model);
+    
+    // If it's not in the local list, it's definitely not local
+    if (!isInLocalList) return false;
+    
+    // Find the model details
+    const modelDetails = localModels.find(m => m.name === model || m.id === model);
+    
+    // If it's a custom model, check if it's using localhost
+    if (modelDetails?.type === 'custom') {
+      // Get the baseUrl from the model details
+      const baseUrl = modelDetails.details?.baseUrl;
+      if (!baseUrl) return false;
+      
+      // Check if the baseUrl is localhost or 127.0.0.1
+      return baseUrl.includes('localhost') || 
+             baseUrl.includes('127.0.0.1') || 
+             baseUrl.includes('::1');
+    }
+    
+    // For standard local models (ollama, lmstudio, etc.), they're always local
+    return true;
+  };
+
   if (isDetecting) {
     return (
       <div className="flex-1 flex items-center justify-center p-4 bg-gray-900">
@@ -308,13 +335,16 @@ export default function ChatInterface() {
           <ChatInput
             onSend={handleSend}
             onCancel={cancelCurrentRequest}
-            disabled={isLoading && !insufficientBalance}
+            disabled={!availableModels.length}
             isLoading={isLoading}
             pendingMessage={pendingMessage}
             setPendingMessage={setPendingMessage}
             insufficientBalance={insufficientBalance}
             balanceInfo={balanceInfo}
-            isLocalModel={currentConversation?.modelId ? localModels.some(m => m.name === currentConversation.modelId || m.id === currentConversation.modelId) : false}
+            isLocalModel={currentConversation?.modelId ? 
+              isModelTrulyLocal(currentConversation.modelId, localModels) : 
+              false
+            }
           />
         </div>
       </div>

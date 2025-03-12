@@ -455,9 +455,10 @@ export function NetworkProvider({ children }) {
       
       // Check balance after our local LLM processes a network request (earning tokens)
       if (data.type === 'completion_success' && isConnected) {
+        // Add a small delay to allow the transaction to be processed
         setTimeout(() => {
           checkBalance(true);
-        }, 10000);
+        }, 2000);
       }
     });
     

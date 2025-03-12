@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -10,7 +10,11 @@ import {
   CheckIcon, 
   ArrowPathIcon, 
   ArrowUturnRightIcon,
-  XMarkIcon
+  XMarkIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  LightBulbIcon,
+  SparklesIcon
 } from '@heroicons/react/24/outline';
 import { useChat } from '../../contexts/ChatContext';
 import { toast } from 'react-hot-toast';
@@ -19,12 +23,47 @@ export default function ChatMessage({ message, onDelete, onEdit, onRegenerate, i
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState(message.content);
   const [isCopied, setIsCopied] = useState(false);
-  const { createNewConversation, currentConversation, sendMessage } = useChat();
+  const [processedContent, setProcessedContent] = useState({ main: '', thinking: '' });
+  const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
+  const { createNewConversation, currentConversation, sendMessage, isStreaming } = useChat();
 
   const isLastMessage = messageIndex === totalMessages - 1;
   const isLastUserMessage = message.role === 'user' && isLastMessage;
   const isErrorMessage = message.isError === true;
   const isUserMessage = message.role === 'user';
+  const hasThinking = processedContent.thinking.length > 0;
+  const isStreamingMessage = message.isStreaming && isStreaming && isLastMessage && !isUserMessage;
+  
+  // Process content to extract thinking blocks
+  useEffect(() => {
+    if (message.content && !isUserMessage) {
+      const thinkingRegex = /<(thinking|think)>([\s\S]*?)<\/(thinking|think)>/g;
+      const thinkingMatches = [...message.content.matchAll(thinkingRegex)];
+      
+      if (thinkingMatches.length > 0) {
+        let mainContent = message.content;
+        const thinkingContent = thinkingMatches.map(match => match[2].trim()).join('\n\n');
+        
+        // Remove thinking tags from main content
+        mainContent = mainContent.replace(thinkingRegex, '').trim();
+        
+        setProcessedContent({
+          main: mainContent,
+          thinking: thinkingContent
+        });
+      } else {
+        setProcessedContent({
+          main: message.content,
+          thinking: ''
+        });
+      }
+    } else {
+      setProcessedContent({
+        main: message.content,
+        thinking: ''
+      });
+    }
+  }, [message.content, isUserMessage]);
 
   const handleFork = async () => {
     try {
@@ -88,6 +127,79 @@ export default function ChatMessage({ message, onDelete, onEdit, onRegenerate, i
     }
   };
 
+  const toggleThinking = () => {
+    setIsThinkingExpanded(!isThinkingExpanded);
+  };
+
+  // Markdown component for rendering content
+  const MarkdownContent = ({ content }) => (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        code({ node, inline, className, children, ...props }) {
+          const match = /language-(\w+)/.exec(className || '');
+          return !inline && match ? (
+            <div className="relative group not-prose my-4">
+              <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(String(children));
+                    toast.success('Code copied to clipboard');
+                  }}
+                  className="p-1.5 bg-gray-700/80 backdrop-blur-sm rounded-md hover:bg-gray-600 transition-colors"
+                  title="Copy code"
+                >
+                  <ClipboardIcon className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="overflow-hidden bg-gray-900 rounded-lg shadow-lg ring-1 ring-gray-700/50">
+                <div className="flex items-center px-4 py-2 bg-gray-800/80 text-xs text-gray-400 border-b border-gray-700/50">
+                  <span className="flex-1 font-mono">{match[1]}</span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(String(children));
+                      toast.success('Code copied to clipboard');
+                    }}
+                    className="p-1 hover:bg-gray-700/80 rounded-md transition-colors"
+                    title="Copy code"
+                  >
+                    <ClipboardIcon className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <SyntaxHighlighter
+                  style={oneDark}
+                  language={match[1]}
+                  PreTag="div"
+                  {...props}
+                  customStyle={{
+                    margin: 0,
+                    padding: '1rem',
+                    background: 'transparent',
+                    borderRadius: 0,
+                    border: 'none'
+                  }}
+                  codeTagProps={{
+                    style: {
+                      fontFamily: 'JetBrains Mono, Menlo, Monaco, Consolas, "Courier New", monospace'
+                    }
+                  }}
+                >
+                  {String(children).replace(/\n$/, '')}
+                </SyntaxHighlighter>
+              </div>
+            </div>
+          ) : (
+            <code className={`${className} font-mono bg-gray-800/70 px-1.5 py-0.5 rounded text-sm`} {...props}>
+              {children}
+            </code>
+          );
+        },
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  );
+
   return (
     <div 
       className={`w-full transition-colors duration-200 ${
@@ -95,7 +207,9 @@ export default function ChatMessage({ message, onDelete, onEdit, onRegenerate, i
           ? 'bg-gray-800/30' 
           : isErrorMessage 
             ? 'bg-red-900/10 border-l-2 border-red-500' 
-            : 'bg-gray-800/50'
+            : isStreamingMessage
+              ? 'bg-gray-800/50 border-l-2 border-blue-500'
+              : 'bg-gray-800/50'
       } ${isEditing ? 'bg-blue-900/10 border-l-2 border-blue-500' : ''}`}
     >
       <div className="container max-w-4xl mx-auto px-4 py-6">
@@ -151,75 +265,42 @@ export default function ChatMessage({ message, onDelete, onEdit, onRegenerate, i
                     </div>
                   </div>
                 ) : (
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    components={{
-                      code({ node, inline, className, children, ...props }) {
-                        const match = /language-(\w+)/.exec(className || '');
-                        return !inline && match ? (
-                          <div className="relative group not-prose my-4">
-                            <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                              <button
-                                onClick={() => {
-                                  navigator.clipboard.writeText(String(children));
-                                  toast.success('Code copied to clipboard');
-                                }}
-                                className="p-1.5 bg-gray-700/80 backdrop-blur-sm rounded-md hover:bg-gray-600 transition-colors"
-                                title="Copy code"
-                              >
-                                <ClipboardIcon className="w-4 h-4" />
-                              </button>
-                            </div>
-                            <div className="overflow-hidden bg-gray-900 rounded-lg shadow-lg ring-1 ring-gray-700/50">
-                              <div className="flex items-center px-4 py-2 bg-gray-800/80 text-xs text-gray-400 border-b border-gray-700/50">
-                                <span className="flex-1 font-mono">{match[1]}</span>
-                                <button
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(String(children));
-                                    toast.success('Code copied to clipboard');
-                                  }}
-                                  className="p-1 hover:bg-gray-700/80 rounded-md transition-colors"
-                                  title="Copy code"
-                                >
-                                  <ClipboardIcon className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                              <SyntaxHighlighter
-                                style={oneDark}
-                                language={match[1]}
-                                PreTag="div"
-                                {...props}
-                                customStyle={{
-                                  margin: 0,
-                                  padding: '1rem',
-                                  background: 'transparent',
-                                  borderRadius: 0,
-                                  border: 'none'
-                                }}
-                                codeTagProps={{
-                                  style: {
-                                    fontFamily: 'JetBrains Mono, Menlo, Monaco, Consolas, "Courier New", monospace'
-                                  }
-                                }}
-                              >
-                                {String(children).replace(/\n$/, '')}
-                              </SyntaxHighlighter>
-                            </div>
+                  <>
+                    {/* Thinking section - now at the beginning */}
+                    {hasThinking && (
+                      <div className="mb-4">
+                        <button
+                          onClick={toggleThinking}
+                          className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300 bg-blue-900/20 hover:bg-blue-900/30 px-3 py-2 rounded-lg transition-colors w-full"
+                        >
+                          <LightBulbIcon className="w-4 h-4" />
+                          <span className="font-medium">Model Thinking Process</span>
+                          {isThinkingExpanded ? (
+                            <ChevronUpIcon className="w-4 h-4 ml-auto" />
+                          ) : (
+                            <ChevronDownIcon className="w-4 h-4 ml-auto" />
+                          )}
+                        </button>
+                        
+                        {isThinkingExpanded && (
+                          <div className="mt-3 p-4 bg-gray-800/70 border border-blue-900/30 rounded-lg">
+                            <MarkdownContent content={processedContent.thinking} />
                           </div>
-                        ) : (
-                          <code className={`${className} font-mono bg-gray-800/70 px-1.5 py-0.5 rounded text-sm`} {...props}>
-                            {children}
-                          </code>
-                        );
-                      },
-                    }}
-                  >
-                    {message.content}
-                  </ReactMarkdown>
+                        )}
+                      </div>
+                    )}
+                    
+                    <MarkdownContent content={processedContent.main} />
+                    
+                    {/* Show cursor animation for streaming content */}
+                    {isStreamingMessage && (
+                      <span className="ml-1 inline-block w-2 h-4 bg-blue-500 animate-cursor-blink"></span>
+                    )}
+                  </>
                 )}
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                {!isLoading && !isEditing && !isErrorMessage && (
+                {!isLoading && !isEditing && !isErrorMessage && !isStreamingMessage && (
                   <>
                     {isUserMessage ? (
                       <>
@@ -340,6 +421,18 @@ export default function ChatMessage({ message, onDelete, onEdit, onRegenerate, i
               )}
               {message.edited && (
                 <span className="text-gray-600">(edited)</span>
+              )}
+              {hasThinking && (
+                <span className="text-blue-400 flex items-center gap-1">
+                  <LightBulbIcon className="w-3 h-3" />
+                  <span>Includes thinking process</span>
+                </span>
+              )}
+              {isStreamingMessage && (
+                <span className="text-blue-400 flex items-center gap-1 animate-pulse">
+                  <SparklesIcon className="w-3 h-3" />
+                  <span>Generating...</span>
+                </span>
               )}
             </div>
           </div>

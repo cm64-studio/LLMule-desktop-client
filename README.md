@@ -92,6 +92,7 @@ Benefits of custom models:
 
 ## 🔄 What's New in This Version
 
+- **Thinking Tags Support**: Collapsible sections for model reasoning with `<thinking></thinking>` or `<think></think>` tags
 - **Enhanced UI/UX**: Modernized interface with improved visual hierarchy and feedback
 - **Improved Code Blocks**: Cleaner code display with better syntax highlighting
 - **Search Enhancements**: Find models by name or username
