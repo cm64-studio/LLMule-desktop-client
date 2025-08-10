@@ -101,28 +101,71 @@ export function setupLLMHandlers() {
           
           try {
             console.log(`Starting streaming with ${type} model: ${model}`);
-            for await (const chunk of client.generateCompletionStream(model, messages, { 
-              temperature, 
-              max_tokens,
-              signal: abortController.signal,
-              useAnthropicV1: type === 'custom' && modelDetails?.useAnthropicV1 || false
-            })) {
-              // Extract content from the chunk based on response format
-              let content = '';
-              if (chunk.content) {
-                content = chunk.content;
-              } else if (chunk.choices?.[0]?.delta?.content) {
-                content = chunk.choices[0].delta.content;
-              } else if (chunk.choices?.[0]?.message?.content) {
-                content = chunk.choices[0].message.content;
-              } else if (typeof chunk === 'string') {
-                content = chunk;
-              }
-              
-              if (content) {
-                fullContent += content;
-                // Send the chunk to the renderer process
-                event.sender.send(`llm:stream:${requestId}`, { content });
+            // Handle different streaming formats
+            if (type === 'ollama') {
+              // Ollama streaming format
+              const streamData = await client.generateCompletionStream(model, messages, { 
+                temperature, 
+                max_tokens,
+                signal: abortController.signal
+              });
+
+              streamData.on('data', (chunk) => {
+                try {
+                  const lines = chunk.toString().split('\n').filter(line => line.trim());
+                  
+                  for (const line of lines) {
+                    const data = JSON.parse(line);
+                    
+                    if (data.message?.content) {
+                      const content = data.message.content;
+                      fullContent += content;
+                      event.sender.send(`llm:stream:${requestId}`, { content });
+                    }
+                    
+                    if (data.done) {
+                      activeRequests.delete(requestId);
+                    }
+                  }
+                } catch (e) {
+                  // Ignore JSON parse errors for incomplete chunks
+                }
+              });
+
+              streamData.on('end', () => {
+                activeRequests.delete(requestId);
+              });
+
+              streamData.on('error', (error) => {
+                console.error(`Streaming error for ${model}:`, error);
+                activeRequests.delete(requestId);
+                throw error;
+              });
+            } else {
+              // Other clients (Custom, etc.)
+              for await (const chunk of client.generateCompletionStream(model, messages, { 
+                temperature, 
+                max_tokens,
+                signal: abortController.signal,
+                useAnthropicV1: type === 'custom' && modelDetails?.useAnthropicV1 || false
+              })) {
+                // Extract content from the chunk based on response format
+                let content = '';
+                if (chunk.content) {
+                  content = chunk.content;
+                } else if (chunk.choices?.[0]?.delta?.content) {
+                  content = chunk.choices[0].delta.content;
+                } else if (chunk.choices?.[0]?.message?.content) {
+                  content = chunk.choices[0].message.content;
+                } else if (typeof chunk === 'string') {
+                  content = chunk;
+                }
+                
+                if (content) {
+                  fullContent += content;
+                  // Send the chunk to the renderer process
+                  event.sender.send(`llm:stream:${requestId}`, { content });
+                }
               }
             }
             

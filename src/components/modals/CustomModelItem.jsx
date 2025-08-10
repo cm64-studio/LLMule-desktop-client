@@ -1,22 +1,24 @@
 import React from 'react';
-import { TrashIcon } from '@heroicons/react/24/outline';
+import { TrashIcon, CogIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 
 // Map of model types to their icons
 const MODEL_TYPE_ICONS = {
   openai: '🟢',
   anthropic: '💜',
+  deepseek: '🔍',
   custom: '🔌'
 };
 
 // Map of model types to display names
 const MODEL_TYPE_NAMES = {
-  openai: 'Chat Completion API',
-  anthropic: 'Claude-compatible API',
+  openai: 'OpenAI API',
+  anthropic: 'Claude API',
+  deepseek: 'DeepSeek API',
   custom: 'Custom API'
 };
 
-export default function CustomModelItem({ model, onDelete, onRefresh }) {
+export default function CustomModelItem({ model, onRefresh }) {
   const [isDeleting, setIsDeleting] = React.useState(false);
   
   const handleDelete = async () => {
@@ -45,21 +47,38 @@ export default function CustomModelItem({ model, onDelete, onRefresh }) {
     return MODEL_TYPE_NAMES[model.details.modelType] || MODEL_TYPE_NAMES.custom;
   };
   
+  const getModelDetails = () => {
+    if (model.details?.externalModelId) {
+      return model.details.externalModelId;
+    }
+    return model.name;
+  };
+  
   return (
     <div className="bg-gray-700/50 hover:bg-gray-700 transition-colors rounded-md p-3 flex justify-between items-center">
       <div className="flex items-center gap-3">
         <div className="text-xl">{getModelTypeIcon()}</div>
         <div>
-          <h3 className="text-white font-mono text-sm">{model.name}</h3>
-          <p className="text-gray-400 text-xs">
-            {getModelTypeName()}
-          </p>
+          <h3 className="text-white font-medium text-sm">{model.name}</h3>
+          <div className="flex items-center gap-2">
+            <span className="text-gray-400 text-xs">{getModelTypeName()}</span>
+            {model.details?.externalModelId && (
+              <span className="text-gray-500 text-xs italic">({getModelDetails()})</span>
+            )}
+          </div>
         </div>
       </div>
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-blue-500" />
-          <span className="text-gray-400 text-xs">Custom</span>
+          <div className={`w-2 h-2 rounded-full ${
+            model.details?.modelType === 'openai' ? 'bg-green-500' :
+            model.details?.modelType === 'anthropic' ? 'bg-purple-500' :
+            model.details?.modelType === 'deepseek' ? 'bg-blue-500' :
+            'bg-gray-500'
+          }`} />
+          <span className="text-gray-400 text-xs">
+            {model.details?.useAnthropicV1 ? 'Legacy' : 'Ready'}
+          </span>
         </div>
         <button
           onClick={handleDelete}

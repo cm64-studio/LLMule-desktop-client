@@ -27,6 +27,7 @@ function App() {
         splashScreen.style.display = 'none'
       }, 500)
     }
+    
   }, [])
 
   const checkAuth = async () => {

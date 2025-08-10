@@ -1,4 +1,22 @@
-const { contextBridge, ipcRenderer } = require('electron')
+const { contextBridge, ipcRenderer, shell } = require('electron')
+// Try to import ollama module, but don't fail if it's not available yet
+let ollama;
+try {
+  ollama = require('./ollama/index.js');
+} catch (error) {
+  console.log('Ollama module not loaded:', error.message);
+  // Create dummy implementations to prevent errors
+  ollama = {
+    isInstalled: () => Promise.resolve(false),
+    isRunning: () => Promise.resolve(false),
+    install: () => Promise.reject(new Error('Ollama module not available')),
+    start: () => Promise.reject(new Error('Ollama module not available')),
+    stop: () => Promise.reject(new Error('Ollama module not available')),
+    listModels: () => Promise.resolve([]),
+    pullModel: () => Promise.reject(new Error('Ollama module not available')),
+    removeModel: () => Promise.reject(new Error('Ollama module not available'))
+  };
+}
 
 // Use environment variables set from config.js
 const config = {
@@ -91,5 +109,34 @@ contextBridge.exposeInMainWorld('electron', {
     onSuspend: (callback) => ipcRenderer.on('system:suspend', () => callback()),
     onResume: (callback) => ipcRenderer.on('system:resume', () => callback()),
     onUnlock: (callback) => ipcRenderer.on('system:unlock', () => callback()),
+    getPlatformInfo: () => ipcRenderer.invoke('system:getPlatformInfo')
   },
+  // Utility to open external links
+  shell: {
+    openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url)
+  },
+  ollama: {
+    isInstalled: () => ipcRenderer.invoke('ollama:isInstalled'),
+    isRunning: () => ipcRenderer.invoke('ollama:isRunning'),
+    install: (platform, arch, progressCallback) => {
+      // Set up progress event listener
+      ipcRenderer.on('ollama:installProgress', (_, progress) => {
+        if (progressCallback) progressCallback(progress);
+      });
+      
+      return ipcRenderer.invoke('ollama:install', platform, arch);
+    },
+    start: () => ipcRenderer.invoke('ollama:start'),
+    stop: () => ipcRenderer.invoke('ollama:stop'),
+    listModels: () => ipcRenderer.invoke('ollama:listModels'),
+    pullModel: (modelName, progressCallback) => {
+      // Set up progress event listener
+      ipcRenderer.on('ollama:pullProgress', (_, progress) => {
+        if (progressCallback) progressCallback(progress);
+      });
+      
+      return ipcRenderer.invoke('ollama:pullModel', modelName);
+    },
+    removeModel: (modelName) => ipcRenderer.invoke('ollama:removeModel', modelName)
+  }
 })

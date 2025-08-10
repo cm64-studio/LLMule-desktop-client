@@ -31,3 +31,10 @@ export-files.js
 #electron
 dist-electron
 release
+
+# Claude Code files
+.claude/
+CLAUDE.md
+
+# ClaudePoint checkpoint system
+.claudepoint/

@@ -138,6 +138,24 @@ export class ModelDetector {
 
   async detectOllamaModels() {
     try {
+      // First try to use the Ollama module if available
+      try {
+        const ollama = require('../ollama/index.js');
+        if (ollama && typeof ollama.listModels === 'function') {
+          console.log('Using Ollama module to list models');
+          const models = await ollama.listModels();
+          console.log('Ollama module returned models:', models);
+          return models.map(model => ({
+            name: model.name,
+            type: 'ollama',
+            details: model
+          }));
+        }
+      } catch (error) {
+        console.log('Failed to use Ollama module, falling back to API:', error.message);
+      }
+
+      // Fall back to API if module is not available or fails
       console.log('Fetching Ollama models from:', `${this.config.ollama}/api/tags`);
       const response = await axios.get(`${this.config.ollama}/api/tags`)
       console.log('Ollama response:', response.data);

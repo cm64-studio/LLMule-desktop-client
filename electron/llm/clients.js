@@ -14,7 +14,8 @@ export class OllamaClient extends LLMClient {
 
   async generateCompletion(model, messages, options = {}) {
     try {
-      const response = await axios.post('http://localhost:11434/api/chat', {
+      // Use Ollama's chat API for better compatibility
+      const response = await axios.post(`${this.baseUrl}/api/chat`, {
         model,
         messages,
         stream: false,
@@ -23,15 +24,9 @@ export class OllamaClient extends LLMClient {
           num_predict: options.max_tokens || 4096,
         }
       }, {
+        timeout: 60000,
         signal: options.signal
       });
-
-      const usage = {
-        prompt_tokens: this._estimateTokenCount(messages),
-        completion_tokens: this._estimateTokenCount([response.data.message]),
-        total_tokens: 0
-      };
-      usage.total_tokens = usage.prompt_tokens + usage.completion_tokens;
 
       return {
         choices: [{
@@ -41,13 +36,45 @@ export class OllamaClient extends LLMClient {
           },
           finish_reason: 'stop'
         }],
-        usage
+        usage: {
+          prompt_tokens: response.data.prompt_eval_count || this._estimateTokenCount(messages),
+          completion_tokens: response.data.eval_count || this._estimateTokenCount([response.data.message]),
+          total_tokens: (response.data.prompt_eval_count || 0) + (response.data.eval_count || 0)
+        },
+        model: response.data.model || model
       };
     } catch (error) {
       if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
         throw new Error('Request cancelled by user');
       }
-      throw new Error(`Ollama error: ${error.message}`);
+      console.error('Ollama error:', error);
+      throw new Error(`Ollama error: ${error.response?.data?.error || error.message}`);
+    }
+  }
+
+  async generateCompletionStream(model, messages, options = {}) {
+    try {
+      const response = await axios.post(`${this.baseUrl}/api/chat`, {
+        model,
+        messages,
+        stream: true,
+        options: {
+          temperature: options.temperature || 0.7,
+          num_predict: options.max_tokens || 4096,
+        }
+      }, {
+        responseType: 'stream',
+        timeout: 0,
+        signal: options.signal
+      });
+
+      return response.data;
+    } catch (error) {
+      if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+        throw new Error('Request cancelled by user');
+      }
+      console.error('Ollama streaming error:', error);
+      throw new Error(`Ollama streaming error: ${error.response?.data?.error || error.message}`);
     }
   }
 

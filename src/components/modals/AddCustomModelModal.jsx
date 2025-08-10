@@ -4,9 +4,10 @@ import { XMarkIcon, QuestionMarkCircleIcon, InformationCircleIcon } from '@heroi
 import { toast } from 'react-hot-toast';
 
 const MODEL_TYPES = [
+  { id: 'openai', name: 'OpenAI Compatible', logo: '🟢', description: 'Connect to GPT models and compatible APIs' },
+  { id: 'anthropic', name: 'Claude API', logo: '💜', description: 'Connect to Claude models from Anthropic' },
+  { id: 'deepseek', name: 'DeepSeek API', logo: '🔍', description: 'Connect to DeepSeek models' },
   { id: 'custom', name: 'Custom Endpoint', logo: '🔌', description: 'Connect to other API-compatible LLM providers' },
-  { id: 'openai', name: 'Chat Completion API', logo: '🟢', description: 'Connect to GPT-compatible models' },
-  { id: 'anthropic', name: 'Claude-compatible API', logo: '💜', description: 'Connect to Claude-format models' },
 ];
 
 // Example configurations for different model types
@@ -18,14 +19,38 @@ const MODEL_EXAMPLES = {
   },
   openai: {
     baseUrl: 'https://api.openai.com/v1',
-    modelId: 'gpt-4, gpt-3.5-turbo',
+    modelId: 'gpt-4o, gpt-4, gpt-3.5-turbo',
     apiKeyFormat: 'sk-...'
   },
   anthropic: {
     baseUrl: 'https://api.anthropic.com/v1',
-    modelId: 'claude-3-opus, claude-3-sonnet',
+    modelId: 'claude-3-opus-20240229, claude-3-sonnet-20240229',
     apiKeyFormat: 'sk-ant-...'
+  },
+  deepseek: {
+    baseUrl: 'https://api.deepseek.com/v1',
+    modelId: 'deepseek-chat, deepseek-coder',
+    apiKeyFormat: 'sk-...'
   }
+};
+
+// Popular model presets for quick selection
+const POPULAR_MODELS = {
+  openai: [
+    { id: 'gpt-4o', name: 'GPT-4o', description: 'Latest powerful multimodal model' },
+    { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', description: 'Most capable GPT-4 model' },
+    { id: 'gpt-4', name: 'GPT-4', description: 'Powerful model for various tasks' },
+    { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', description: 'Fast and cost-effective' }
+  ],
+  anthropic: [
+    { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', description: 'Most powerful Claude model' },
+    { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet', description: 'Balanced performance and cost' },
+    { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku', description: 'Fast and efficient' }
+  ],
+  deepseek: [
+    { id: 'deepseek-chat', name: 'DeepSeek Chat', description: 'General purpose chat model' },
+    { id: 'deepseek-coder', name: 'DeepSeek Coder', description: 'Specialized for coding tasks' }
+  ]
 };
 
 export default function AddCustomModelModal({ isOpen, onClose, onAddModel }) {
@@ -37,6 +62,7 @@ export default function AddCustomModelModal({ isOpen, onClose, onAddModel }) {
   const [useAnthropicV1, setUseAnthropicV1] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showTooltip, setShowTooltip] = useState('');
+  const [showModelPresets, setShowModelPresets] = useState(false);
 
   // Set default values based on selected type
   React.useEffect(() => {
@@ -44,11 +70,15 @@ export default function AddCustomModelModal({ isOpen, onClose, onAddModel }) {
       setBaseUrl('https://api.openai.com/v1');
     } else if (selectedType === 'anthropic') {
       setBaseUrl('https://api.anthropic.com/v1');
+    } else if (selectedType === 'deepseek') {
+      setBaseUrl('https://api.deepseek.com/v1');
     } else {
       setBaseUrl('');
     }
     // Reset custom model ID when changing provider type
     setCustomModelId('');
+    // Reset the show model presets state
+    setShowModelPresets(false);
   }, [selectedType]);
 
   const handleSubmit = async (e) => {
@@ -100,6 +130,15 @@ export default function AddCustomModelModal({ isOpen, onClose, onAddModel }) {
     setSelectedType('openai');
     setCustomModelId('');
     setUseAnthropicV1(false);
+    setShowModelPresets(false);
+  };
+
+  const handleSelectPreset = (preset) => {
+    setCustomModelId(preset.id);
+    if (!modelName) {
+      setModelName(preset.name);
+    }
+    setShowModelPresets(false);
   };
 
   const Tooltip = ({ id, children }) => (
@@ -175,6 +214,9 @@ export default function AddCustomModelModal({ isOpen, onClose, onAddModel }) {
                         </svg>
                       </div>
                     </div>
+                    <p className="mt-0.5 text-xs text-gray-400">
+                      {MODEL_TYPES.find(t => t.id === selectedType)?.description}
+                    </p>
                   </div>
                   
                   {/* Combined Configuration Section */}
@@ -199,31 +241,64 @@ export default function AddCustomModelModal({ isOpen, onClose, onAddModel }) {
                       </p>
                     </div>
                     
-                    {/* External Model ID (only show for OpenAI and Anthropic) */}
-                    {(selectedType === 'openai' || selectedType === 'anthropic' || selectedType === 'custom') && (
+                    {/* External Model ID with Model Presets */}
+                    {(selectedType === 'openai' || selectedType === 'anthropic' || selectedType === 'deepseek' || selectedType === 'custom') && (
                       <div className="mb-3 relative">
-                        <div className="flex items-center">
-                          <label htmlFor="customModelId" className="block text-gray-300 text-sm font-medium mb-1">
-                            Model ID {selectedType !== 'custom' ? `(required)` : ''}
-                          </label>
-                          <button
-                            type="button"
-                            className="ml-1 text-gray-400 hover:text-gray-300"
-                            onMouseEnter={() => setShowTooltip('modelId')}
-                            onMouseLeave={() => setShowTooltip('')}
-                          >
-                            <QuestionMarkCircleIcon className="h-4 w-4" />
-                          </button>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center">
+                            <label htmlFor="customModelId" className="block text-gray-300 text-sm font-medium mb-1">
+                              Model ID {selectedType !== 'custom' ? `(required)` : ''}
+                            </label>
+                            <button
+                              type="button"
+                              className="ml-1 text-gray-400 hover:text-gray-300"
+                              onMouseEnter={() => setShowTooltip('modelId')}
+                              onMouseLeave={() => setShowTooltip('')}
+                            >
+                              <QuestionMarkCircleIcon className="h-4 w-4" />
+                            </button>
+                          </div>
+                          
+                          {selectedType !== 'custom' && (
+                            <button
+                              type="button"
+                              className="text-xs text-blue-400 hover:text-blue-300"
+                              onClick={() => setShowModelPresets(!showModelPresets)}
+                            >
+                              {showModelPresets ? 'Hide Presets' : 'Show Presets'}
+                            </button>
+                          )}
                         </div>
-                        <input
-                          type="text"
-                          id="customModelId"
-                          className="w-full px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder={MODEL_EXAMPLES[selectedType].modelId}
-                          value={customModelId}
-                          onChange={(e) => setCustomModelId(e.target.value)}
-                          required={selectedType === 'openai' || selectedType === 'anthropic'}
-                        />
+                        
+                        <div className="relative">
+                          <input
+                            type="text"
+                            id="customModelId"
+                            className="w-full px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder={MODEL_EXAMPLES[selectedType].modelId}
+                            value={customModelId}
+                            onChange={(e) => setCustomModelId(e.target.value)}
+                            required={selectedType === 'openai' || selectedType === 'anthropic' || selectedType === 'deepseek'}
+                          />
+                          
+                          {/* Model Presets Dropdown */}
+                          {showModelPresets && POPULAR_MODELS[selectedType] && (
+                            <div className="absolute z-10 mt-1 w-full bg-gray-700 border border-gray-600 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                              {POPULAR_MODELS[selectedType].map(model => (
+                                <div 
+                                  key={model.id}
+                                  className="px-3 py-2 hover:bg-gray-600 cursor-pointer"
+                                  onClick={() => handleSelectPreset(model)}
+                                >
+                                  <div className="font-medium text-white">{model.name}</div>
+                                  <div className="text-xs text-gray-400">{model.id}</div>
+                                  <div className="text-xs text-gray-300 mt-0.5">{model.description}</div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        
                         <p className="mt-0.5 text-xs text-gray-400">
                           The actual model identifier used by the API provider
                         </p>
@@ -260,7 +335,15 @@ export default function AddCustomModelModal({ isOpen, onClose, onAddModel }) {
                       />
                       <Tooltip id="baseUrl">
                         <p>The base URL for the API endpoint.</p>
-                        <p className="mt-1">Default for {selectedType === 'openai' ? 'Chat Completion API' : selectedType === 'anthropic' ? 'Claude-compatible API' : 'Custom API'}: {MODEL_EXAMPLES[selectedType].baseUrl}</p>
+                        <p className="mt-1">Default for {selectedType === 'openai' 
+                          ? 'OpenAI API' 
+                          : selectedType === 'anthropic' 
+                            ? 'Claude API' 
+                            : selectedType === 'deepseek'
+                              ? 'DeepSeek API'
+                              : 'Custom API'}: 
+                          {MODEL_EXAMPLES[selectedType].baseUrl}
+                        </p>
                       </Tooltip>
                     </div>
                     
@@ -286,7 +369,7 @@ export default function AddCustomModelModal({ isOpen, onClose, onAddModel }) {
                         placeholder={MODEL_EXAMPLES[selectedType].apiKeyFormat}
                         value={apiKey}
                         onChange={(e) => setApiKey(e.target.value)}
-                        required={selectedType === 'openai' || selectedType === 'anthropic'}
+                        required={selectedType === 'openai' || selectedType === 'anthropic' || selectedType === 'deepseek'}
                       />
                       <p className="mt-0.5 text-xs text-gray-400">
                         <span className="text-yellow-400">⚠️ Security Note:</span> Your API key is stored locally and encrypted. It is never shared with our servers.
@@ -331,7 +414,7 @@ export default function AddCustomModelModal({ isOpen, onClose, onAddModel }) {
                       type="submit"
                       className="px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={isSubmitting || !modelName.trim() || !baseUrl.trim() || 
-                              ((selectedType === 'openai' || selectedType === 'anthropic') && 
+                              ((selectedType === 'openai' || selectedType === 'anthropic' || selectedType === 'deepseek') && 
                                (!apiKey.trim() || !customModelId.trim()))}
                     >
                       {isSubmitting ? (

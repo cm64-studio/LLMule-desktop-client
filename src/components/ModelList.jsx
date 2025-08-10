@@ -35,6 +35,7 @@ export default function ModelList() {
   // Filter models by type
   const standardModels = localModels.filter(model => model.type !== 'custom')
   const customModels = localModels.filter(model => model.type === 'custom')
+  
 
   // Initialize selected models from sharing preferences
   useEffect(() => {
@@ -85,6 +86,7 @@ export default function ModelList() {
     }
   };
 
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex justify-between items-center mb-3">
@@ -107,6 +109,7 @@ export default function ModelList() {
           </button>
         </div>
       </div>
+      
       
       <div className="bg-gray-750 border border-gray-700 rounded-md p-3 mb-4">
         <p className="text-sm text-gray-300">
@@ -187,12 +190,14 @@ export default function ModelList() {
             <p className="text-sm text-gray-500 mt-2">
               Please make sure your LLM service is running
             </p>
-            <button
-              onClick={refreshModels}
-              className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm transition-colors"
-            >
-              Check Again
-            </button>
+            <div className="mt-4 flex justify-center gap-2">
+              <button
+                onClick={refreshModels}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm transition-colors"
+              >
+                Check Again
+              </button>
+            </div>
           </div>
         )}
         
@@ -205,11 +210,13 @@ export default function ModelList() {
         )}
       </div>
       
+      {/* Modals */}
       <AddCustomModelModal 
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         onAddModel={refreshModels}
       />
+      
     </div>
   )
 }

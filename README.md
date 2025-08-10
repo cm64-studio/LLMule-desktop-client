@@ -1,115 +1,154 @@
-# LLMule Desktop
+# 🤝 LLMule Desktop
 
-LLMule Desktop is a powerful desktop application that lets you chat with AI models while maintaining complete privacy. It automatically detects your local LLM services and allows you to share them with the LLMule network, creating a decentralized P2P network for AI inference.
+**An Experimental P2P Network for Sharing GPU Resources**
+
+LLMule Desktop is a community experiment in making AI more accessible by sharing idle GPU power. Chat with local models privately, contribute your unused compute to help others, and access shared models from the community - all while keeping privacy and anonymity at the core.
+
+<div align="center">
+
+[![Watch Demo](https://img.shields.io/badge/▶️_Watch_Demo-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://www.youtube.com/watch?v=PebxWZLz_VM)
+
+</div>
 
 <div align="center">
   <img src="https://llmule-public.s3.us-east-1.amazonaws.com/LLMule.gif" alt="LLMule Desktop Demo" style="max-width: 100%; width: 100%;" />
-  <p><em>LLMule Desktop - Chat with local & network models seamlessly</em></p>
+  <p><em>Share idle GPU power. Chat with local and community models. Privacy-first experimental platform.</em></p>
 </div>
 
-## 🚀 Key Features
+## 🤔 Why Does This Project Exist?
 
-- **Privacy-First Chat Interface**
-  - Chat with local models with complete privacy - your conversations never leave your computer
-  - Modern, intuitive UI with real-time responses
-  - Support for system prompts and conversation management
-  - Enhanced code block rendering with syntax highlighting and easy copying
-  - Improved error handling with clear error messages
+**💸 GPU Costs Are Insane**  
+High-end GPUs cost thousands, but sit idle most of the time. What if we could share that expensive compute power when we're not using it?
 
-- **Seamless Model Integration**
-  - Auto-detection of local LLM services (Ollama, LM Studio, and EXO)
-  - No configuration needed - just install and start chatting
-  - Easy switching between local and network models
-  - Support for custom models with manual configuration
-  - Search models by name or username for quick access
+**🤝 Community Over Commerce**  
+This isn't about making money - it's about empowering the open-source LLM community. We share resources because we believe AI should be accessible, not because we want to get rich.
 
-- **Model Sharing & Network**
-  - Optional: Share your local models with the LLMule network
-  - Access shared models from other users
-  - Built-in token usage tracking and analytics
-  - Real-time model status monitoring
-  - Simplified model quality tiers with intuitive labels
+**🔒 Privacy Matters**  
+Local models mean your conversations never leave your computer. For network models, anonymity is built-in. No tracking, no data collection, no surveillance.
 
-- **Security & Privacy**
-  - Local models run completely offline
-  - Anonymous chat with network models
-  - Secure websocket communication
-  - Clear visual indicators for local vs. network models
 
-## 🔧 Prerequisites
+## 🌟 What Makes LLMule Special
 
-- Node.js >= 18
-- One or more supported LLM services:
-  - [Ollama](https://ollama.ai) (port 11434)
-  - [LM Studio](https://lmstudio.ai) (port 1234) 
-  - [EXO](https://github.com/exo-explore/exo) (port 52415)
-  - [vLLM](https://github.com/vllm-project/vllm) (port 8000)
+### 🏠 **Local-First Architecture**
+- **Ollama Integration**: Seamlessly manage and chat with Ollama models
+- **LM Studio Support**: Connect to your LM Studio setup instantly
+- **EXO & vLLM Compatible**: Works with advanced inference engines
+- **Custom Models**: Add any OpenAI-compatible API endpoint
 
-## 💻 Installation
+### 🌐 **P2P Resource Sharing Network**
+- **Share When Idle**: Contribute your unused GPU power to the community
+- **Access Shared Models**: Use models from other contributors' hardware
+- **Anti-Abuse Tokens**: Simple token system prevents resource abuse (experimental, not monetary)
+- **True P2P**: No central servers controlling your data or models
 
-Download the latest release for your platform from the [releases page](https://llmule.xyz).
+### 🎨 **Decent Chat Interface**
+- **Switch Between Models**: Easily test local and shared models
+- **Thinking Tags**: See AI reasoning with collapsible `<thinking>` sections  
+- **Conversation Management**: Save and organize your chats locally
+- **Real-time Streaming**: Watch responses appear as they're generated
 
-Or build from source:
+### 🔐 **Privacy & Security**
+- **Local Models Stay Local**: Your conversations never leave your computer
+- **Anonymous P2P**: Network participation doesn't expose your identity
+- **Encrypted Storage**: API keys and settings protected locally
+- **Open Source**: Transparent code you can verify and modify
 
+## 🚀 Get Started in 60 Seconds
+
+### Option 1: Download & Install (Recommended)
+1. **Download** the latest release from [llmule.xyz](https://llmule.xyz)
+2. **Install** the app on your platform
+3. **Launch** and start chatting with AI models
+
+### Option 2: Build from Source
 ```bash
 git clone https://github.com/cm64/LLMule-desktop-client.git
 cd LLMule-desktop-client
 npm install
 
-# Start in development mode
-npm run dev 
+# Development mode
+npm run dev
 
-# Build for production
+# Build production version
 npm run build
 
-# Package for your platform
-npm run package:mac      # macOS universal binary
+# Package for distribution
 npm run package:mac-arm64  # Apple Silicon
-npm run package:mac-x64    # Intel
-npm run package:win      # Windows
+npm run package:mac-x64    # Intel Mac
+npm run package:win        # Windows
+npm run package:linux      # Linux
 ```
 
-## 🧠 Adding Custom Models
+## 🛠 Supported AI Platforms
 
-LLMule Desktop now supports adding custom models to enhance your AI experience:
+| Platform | Auto-Detection | Installation Help | Model Management |
+|----------|:--------------:|:-----------------:|:----------------:|
+| **Ollama** | ✅ | ✅ | ✅ Pull, Remove, List |
+| **LM Studio** | ✅ | ❌ | ✅ Auto-discover |
+| **EXO** | ✅ | ❌ | ✅ Auto-discover |
+| **vLLM** | ✅ | ❌ | ✅ Auto-discover |
+| **Custom APIs** | ✅ | ✅ | ✅ Full management |
 
-### Using Local Model Services
+## 💡 How to Use This Experiment
 
-1. **Ollama**: Add custom models using `ollama pull [model]` command
-2. **LM Studio**: Import custom GGUF models through the LM Studio interface
-3. **EXO**: Configure custom models in the EXO settings
-4. **vLLM**: Deploy custom models following vLLM documentation
+**🔒 For Privacy-Focused Users**
+- Use only local models - conversations never leave your machine
+- Perfect for sensitive work or personal projects
+- No internet required once models are downloaded
 
-### Custom Model Configuration
+**⚗️ For Community Contributors** 
+- Share your idle GPU power when you're not using it
+- Help others access models they can't run locally
+- Earn anti-abuse tokens (experimental, not financial)
 
-Custom models will be automatically detected when you start the supported services. The model selector will display all available models with appropriate indicators for local models.
+**🧪 For Experimenters**
+- Test different models easily without complex setup
+- Compare local vs. shared model performance
+- Contribute to an open experiment in decentralized AI
 
-Benefits of custom models:
-- Use specialized models for specific tasks
-- Access the latest open-source models
-- Share your custom models with the network
-- Maintain complete privacy with local inference
+## 🆕 What's New in v0.2.0
 
-## 🔄 What's New in This Version
+- **🔧 Real Ollama Integration**: No more mocks - full Ollama installation, management, and streaming
+- **🛡️ Enhanced Security**: Fixed all critical vulnerabilities, improved encryption
+- **💬 Thinking Tags**: Collapsible reasoning sections for supported models
+- **⚡ Better Streaming**: Improved real-time response handling
+- **🎨 UI Polish**: Smoother animations, better error messages
+- **🔗 P2P Stability**: More reliable network connections and reconnection logic
 
-- **Thinking Tags Support**: Collapsible sections for model reasoning with `<thinking></thinking>` or `<think></think>` tags
-- **Enhanced UI/UX**: Modernized interface with improved visual hierarchy and feedback
-- **Improved Code Blocks**: Cleaner code display with better syntax highlighting
-- **Search Enhancements**: Find models by name or username
-- **Better Error Handling**: Clear error messages and automatic recovery
-- **Simplified Model Tiers**: More intuitive quality indicators for different model capabilities
-- **Performance Improvements**: Faster model loading and response times
+## 🤝 Join the Community
 
-## 🤝 Contributing
+**🎮 Discord**: [Join our community](https://discord.gg/llmule) for support and discussions  
+**🐦 Twitter**: [@llmule](https://twitter.com/llmule) for updates and announcements  
+**📧 Email**: [hello@llmule.xyz](mailto:hello@llmule.xyz) for partnerships and support  
 
-Contributions are welcome! Please feel free to submit a PR.
+## 🛣️ Roadmap
 
-## 📝 License
+- **Q1 2025**: Mobile companion app
+- **Q2 2025**: Plugin system for custom integrations  
+- **Q3 2025**: Team collaboration features
+- **Q4 2025**: Advanced model fine-tuning tools
 
-This project is open-sourced under the MIT License.
+## ❓ FAQ
+
+**Is this private?**
+- **Local models**: 100% private - conversations never leave your computer
+- **Network models**: Anonymous - your identity isn't revealed, but you're using someone else's GPU
+
+**What are the tokens about?**
+- Simple system to prevent resource abuse (like rate limiting)
+- Not money or cryptocurrency - just anti-spam protection
+- Experimental feature that might evolve or disappear
 
 ---
 
-Built with 💾 by [@andycufari](https://github.com/andycufari)
+<div align="center">
 
-Let's make AI inference decentralized and privacy-focused!
+**Want to join the experiment?**
+
+[![Try LLMule](https://img.shields.io/badge/Try_The_Experiment-4CAF50?style=for-the-badge&logo=download&logoColor=white)](https://llmule.xyz)
+[![Star on GitHub](https://img.shields.io/badge/⭐_Star_on_GitHub-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/cm64/LLMule-desktop-client)
+
+Built with curiosity by [@andycufari](https://github.com/andycufari)  
+Experimenting with community-driven AI resource sharing.
+
+</div>
